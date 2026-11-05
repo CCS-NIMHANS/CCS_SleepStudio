@@ -24,10 +24,10 @@ void main() {
   });
 
   test('GroupStatsEngine inspects master sheet in pure Dart without Python', () async {
-    const csv1 = '/Users/arunsasidharan/Downloads/MED_AnalyseNidra_master_sheet_07102026.csv';
+    final csv1 = Platform.environment['CCS_TEST_MASTER_CSV_MED'] ?? '';
     final file = File(csv1);
     final String testPath;
-    if (file.existsSync()) {
+    if (csv1.isNotEmpty && file.existsSync()) {
       testPath = csv1;
     } else {
       final tmp = File('${Directory.systemTemp.path}/test_group_stats.csv');

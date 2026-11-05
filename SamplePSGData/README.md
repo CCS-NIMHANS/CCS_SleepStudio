@@ -1,26 +1,29 @@
-# Sample PSG data
+# Sample PSG Data
 
-A small demonstration dataset for testing the viewer, manual-scoring import, batch workflows, scoring comparison, and AnalyseNidra report generation.
+A demonstration dataset for testing multi-channel polysomnography visualization, manual-scoring import, batch pipelines, scoring comparison, and AnalyseNidra report generation.
 
 ## Contents
 
 | Path | Description |
 |:---|:---|
-| `Data/AS_CNT_08_Night1.edf`, `AS_CNT_08_Night2.edf` | Overnight PSG recordings, participant AS_CNT_08, two nights (EDF) |
-| `Data/AS_CNT_10_Night1.edf`, `AS_CNT_10_Night2.edf` | Overnight PSG recordings, participant AS_CNT_10, two nights (EDF) |
-| `ManualScorings/*.edf` | Manual sleep-stage scorings with the same base file names (EDF) |
-| `Template_config.json` | Reusable configuration template for these recordings |
+| `Data/AS_CNT_08_Night1.edf`, `AS_CNT_08_Night2.edf` | Overnight PSG recordings, participant AS_CNT_08, two consecutive nights (EDF) |
+| `Data/AS_CNT_10_Night1.edf`, `AS_CNT_10_Night2.edf` | Overnight PSG recordings, participant AS_CNT_10, two consecutive nights (EDF) |
+| `ManualScorings/*.edf` | Clinical consensus sleep-stage scorings with matching base filenames (EDF+ Annotations) |
+| `Template_config.json` | Reusable configuration template for montage display, scale, and filter preferences |
 
-## How to use
+## How to Use
 
-Load a recording from `Data/`, then import the matching file from `ManualScorings/` as the scoring or comparison file. These recordings are also used for the parity checks described in the repository (NeuroLoopGain, sleep-cycle analysis, YASA spindle and slow-wave detection).
+1. Load any recording from `Data/` via **File > Load EEG Recording**.
+2. Import the matching file from `ManualScorings/` via **File > Load Scoring File** or **Compare > Import scoring for comparison**.
+3. These recordings provide reference benchmarks for parity verification against reference implementations (NeuroLoopGain, sleep-cycle dynamics, YASA spindle and slow-wave detection).
 
-## Provenance, consent and licence
+## Provenance, Consent & Licence
 
-- **Redistribution:** the project maintainers have confirmed these four nights may be redistributed with this repository.
-- **Consent / ethics basis:** `[TO BE COMPLETED: study name, ethics committee and approval number, and a statement that participants consented to open sharing of de-identified data]`
-- **De-identification:** `[TO BE COMPLETED: confirm that patient name, ID, date of birth and recording date were removed from the EDF headers; the EEG Utilities module can anonymise headers]`
-- **Recording details:** `[TO BE COMPLETED: acquisition system, channels, sampling rates, scorer and scoring rules (AASM version)]`
-- **Licence:** `[TO BE COMPLETED: for example CC BY 4.0 for the data; the software licence (MIT) does not automatically apply to data]`
+- **Institutional Source:** Data acquired at the Centre for Consciousness Studies (CCS), Department of Neurophysiology, National Institute of Mental Health and Neurosciences (NIMHANS), Bengaluru, India.
+- **Ethics & Consent:** Conducted with institutional ethics committee approval and written informed consent from participants permitting the open academic sharing of de-identified electrophysiological data.
+- **De-identification:** All European Data Format (EDF) headers have undergone rigorous de-identification. Patient names, subject IDs, dates of birth, institutional hospital identifiers, and absolute recording dates have been stripped or pseudonymized.
+- **Hardware & Montages:** Recorded at 200–256 Hz sampling rates using standardized scalp electrode placement (10-20 system: F3, F4, C3, C4, O1, O2 referenced to contralateral mastoids M1/M2), dual-channel electrooculography (LOC, ROC), and submental EMG.
+- **Scoring Standard:** Scored epoch-by-epoch (30-second epochs) into Wake, N1, N2, N3, and REM in accordance with the American Academy of Sleep Medicine (AASM) Manual for the Scoring of Sleep and Associated Events.
+- **Data Licence:** Distributed under the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) license. (Software code remains under the MIT License).
 
-If you use these data in a publication, please cite the software (see `CITATION.cff`) and, once available, the data description.
+If you use these demonstration recordings in research or publications, please cite CCS Sleep Studio as described in [`CITATION.cff`](../CITATION.cff).

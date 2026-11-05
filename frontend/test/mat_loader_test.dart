@@ -5,9 +5,8 @@ import 'package:ccs_sleep_studio/src/mat_loader.dart';
 
 void main() {
   test('loads ScoringHero EEGLAB v5 MAT example when available', () {
-    final file = File(
-      '/Users/arunsasidharan/Code/ActiveProjects/CCS_SleepScoring/ScoringHero-0.2.4/example_data/example_data.mat',
-    );
+    final customPath = Platform.environment['SCORINGHERO_EXAMPLE_MAT'] ?? '';
+    final file = File(customPath);
     if (!file.existsSync()) {
       return;
     }

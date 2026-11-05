@@ -926,8 +926,10 @@ mod tests {
     #[test]
     #[ignore]
     fn test_diagnose_spindles_fa7312q6() {
-        let edf_path = Path::new("/var/folders/9k/ls5yw_rj7h7_pm57rh7ngtgw0000gn/T/ccs_psg_KQ5VCA/FA7312Q6.edf");
-        let scoring_path = Path::new("/Users/arunsasidharan/EEGdata/Sleep/SiyamPSGData/LD_Pi_03/FA7312Q6_scoring.json");
+        let edf_env = std::env::var("CCS_TEST_DIAGNOSE_EDF").unwrap_or_default();
+        let scoring_env = std::env::var("CCS_TEST_DIAGNOSE_SCORING").unwrap_or_default();
+        let edf_path = Path::new(&edf_env);
+        let scoring_path = Path::new(&scoring_env);
         if !edf_path.exists() || !scoring_path.exists() {
             println!("Skipping test: test files not present");
             return;

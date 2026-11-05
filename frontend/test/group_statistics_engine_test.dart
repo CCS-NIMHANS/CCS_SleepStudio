@@ -4,8 +4,8 @@ import 'package:ccs_sleep_studio/src/group_statistics_engine.dart';
 
 void main() {
   test('GroupStatsEngine inspects CSV and computes statistical models in pure Dart', () async {
-    const csvPath = '/Users/arunsasidharan/Downloads/Channel_wise_AnalyseNidra_master_sheet_2026-10-13T130705.csv';
-    if (!File(csvPath).existsSync()) return;
+    final csvPath = Platform.environment['CCS_TEST_MASTER_CSV'] ?? '';
+    if (csvPath.isEmpty || !File(csvPath).existsSync()) return;
 
     final insp = await GroupStatsEngine.inspectDataset(csvPath: csvPath);
     expect(insp['total_rows'], greaterThan(0));

@@ -22,7 +22,7 @@ We want participation in the CCS Sleep Studio community to be a respectful, hara
 
 Project maintainers are responsible for clarifying these standards and may remove, edit or reject comments, commits, issues and other contributions that do not follow this Code of Conduct, and may temporarily or permanently ban contributors for behaviour they judge inappropriate.
 
-Instances of unacceptable behaviour may be reported to the maintainers at **[CONTACT EMAIL TO BE ADDED]**, or by contacting the repository owner through GitHub. All reports will be reviewed and handled confidentially.
+Instances of unacceptable behaviour may be reported to the maintainers at **arunsasi84@gmail.com** (Dr. Arun Sasidharan, Centre for Consciousness Studies, NIMHANS), or by contacting the repository maintainers through GitHub. All reports will be reviewed and handled confidentially.
 
 ## Attribution
 

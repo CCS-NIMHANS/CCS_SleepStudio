@@ -68,11 +68,9 @@ ${includeHeader ? 'Date, Time, Recording onset, Duration, Annotation, Linked cha
   });
 
   test('loads provided Polyman EDF+ annotations when available', () async {
-    final file = File(
-      '/Users/arunsasidharan/EEGdata/PooledPSGScoringFormats/'
-      'polyman_edfformat.edf',
-    );
-    if (!file.existsSync()) return;
+    final pooledDir = Platform.environment['POOLED_PSG_SCORINGS_DIR'] ?? '';
+    final file = File('$pooledDir/polyman_edfformat.edf');
+    if (pooledDir.isEmpty || !file.existsSync()) return;
 
     final detection = await detectScoringFormat(file.path);
     final result = await loadScoringFileDirectly(file.path, 'edf_anno', 50);

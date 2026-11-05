@@ -2,8 +2,8 @@
 
 Native Rust port of `SleepAnalysis.py`, verified with:
 
-- `/Users/arunsasidharan/EEGdata/Sleep/PSG/AS_CNT_08_Night1.edf`
-- `/Users/arunsasidharan/EEGdata/Sleep/PSG/AS_CNT_08_Night1_yasa_sleepgpt.json`
+- `SamplePSGData/Data/AS_CNT_08_Night1.edf`
+- `SamplePSGData/ManualScorings/AS_CNT_08_Night1.edf`
 
 The EDF `A1` and `A2` channels are normalized to `M1` and `M2`. By default,
 `F3,F4,C3,C4,O1,O2` are analyzed after referencing to the mean of `M1,M2`.

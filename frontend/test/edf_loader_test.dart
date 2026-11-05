@@ -73,9 +73,8 @@ void main() {
   });
 
   test('loads original ScoringHero night EDF example when available', () {
-    final file = File(
-      '/Users/arunsasidharan/Code/ActiveProjects/CCS_SleepScoring/ScoringHero-0.2.4/example_data/night_recording.edf',
-    );
+    final customPath = Platform.environment['SCORINGHERO_NIGHT_EDF'] ?? '';
+    final file = File(customPath);
     if (!file.existsSync()) {
       return;
     }
