@@ -36,7 +36,7 @@ class UpdateInfo {
 }
 
 class UpdateChecker {
-  static const String repoOwner = 'arunsasidharan84';
+  static const String repoOwner = 'CCS-NIMHANS';
   static const String repoName = 'CCS_SleepStudio';
 
   /// Compares semantic versions (e.g. "1.11.1" vs "1.12.0").

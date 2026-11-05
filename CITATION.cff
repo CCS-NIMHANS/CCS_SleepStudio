@@ -6,8 +6,8 @@ abstract: "A cross-platform desktop suite for sleep EEG visualisation, manual sc
 version: 1.27.1
 date-released: 2026-10-06
 license: MIT
-repository-code: "https://github.com/arunsasidharan84/CCS_SleepStudio"
-url: "https://github.com/arunsasidharan84/CCS_SleepStudio"
+repository-code: "https://github.com/CCS-NIMHANS/CCS_SleepStudio"
+url: "https://github.com/CCS-NIMHANS/CCS_SleepStudio"
 keywords:
   - sleep
   - EEG

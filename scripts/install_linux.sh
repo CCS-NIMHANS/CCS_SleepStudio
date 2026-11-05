@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # CCS Sleep Studio - Enterprise Linux Multi-User Server Installer
-# Repository: https://github.com/arunsasidharan84/CCS_SleepStudio
+# Repository: https://github.com/CCS-NIMHANS/CCS_SleepStudio
 # ==============================================================================
 set -euo pipefail
 
-GITHUB_REPO="arunsasidharan84/CCS_SleepStudio"
+GITHUB_REPO="CCS-NIMHANS/CCS_SleepStudio"
 PACKAGE_VARIANT="${1:-full}" # "full" or "lite"
 
 echo "======================================================================"
@@ -239,7 +239,7 @@ cat > "$UPDATER_BIN" << 'EOF'
 set -euo pipefail
 echo "--> Checking for latest CCS Sleep Studio updates..."
 TMP_SCRIPT=$(mktemp)
-curl -fsSL "https://raw.githubusercontent.com/arunsasidharan84/CCS_SleepStudio/main/scripts/install_linux.sh" -o "$TMP_SCRIPT"
+curl -fsSL "https://raw.githubusercontent.com/CCS-NIMHANS/CCS_SleepStudio/main/scripts/install_linux.sh" -o "$TMP_SCRIPT"
 chmod +x "$TMP_SCRIPT"
 exec bash "$TMP_SCRIPT" "$@"
 EOF

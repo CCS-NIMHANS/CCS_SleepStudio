@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rootless (No-Sudo) Linux Installer & Updater for CCS Sleep Studio
 # Can be run by any standard user without sudo privileges:
-#   curl -fsSL https://raw.githubusercontent.com/arunsasidharan84/CCS_SleepStudio/main/scripts/update_linux_nosudo.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/CCS-NIMHANS/CCS_SleepStudio/main/scripts/update_linux_nosudo.sh | bash
 # Or with a local .deb / .rpm file:
 #   bash update_linux_nosudo.sh /path/to/CCSSleepStudio-linux-amd64.deb
 
@@ -28,7 +28,7 @@ if [ -z "$PKG_FILE" ]; then
     ASSET_NAME="CCSSleepStudio-linux-x86_64.rpm"
   fi
 
-  DL_URL="https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/$ASSET_NAME"
+  DL_URL="https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/$ASSET_NAME"
   DL_FILE="/tmp/$ASSET_NAME"
   echo "Downloading $DL_URL ..."
   curl -fL "$DL_URL" -o "$DL_FILE"

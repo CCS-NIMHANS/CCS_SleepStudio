@@ -18811,7 +18811,7 @@ class _DownloadStatsDialogState extends State<_DownloadStatsDialog> {
     try {
       final request = await client.getUrl(
         Uri.parse(
-          'https://api.github.com/repos/arunsasidharan84/CCS-Sleep-Studio/releases/tags/latest',
+          'https://api.github.com/repos/CCS-NIMHANS/CCS_SleepStudio/releases/tags/latest',
         ),
       );
       request.headers.set(HttpHeaders.userAgentHeader, 'CCS-Sleep-Studio-App');

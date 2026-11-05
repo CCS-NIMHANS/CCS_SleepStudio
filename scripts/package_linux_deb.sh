@@ -89,7 +89,7 @@ Depends: libgtk-3-0, libblkid1, liblzma5
 Recommends: libmpv1 | libmpv2
 Conflicts: $conflicts
 Maintainer: CCS Sleep Studio Project <noreply@github.com>
-Homepage: https://github.com/arunsasidharan84/CCS-Sleep-Studio
+Homepage: https://github.com/CCS-NIMHANS/CCS_SleepStudio
 Description: $description
  CCS Sleep Studio is a desktop application for polysomnography review,
  sleep staging, and advanced quantitative EEG analysis.

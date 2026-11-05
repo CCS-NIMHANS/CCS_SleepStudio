@@ -15,15 +15,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/arunsasidharan84/CCS_SleepStudio?style=for-the-badge&color=2563eb&label=RELEASE"></a>
-  <a href="https://github.com/arunsasidharan84/CCS_SleepStudio/actions/workflows/build.yml"><img alt="Desktop build" src="https://img.shields.io/github/actions/workflow/status/arunsasidharan84/CCS_SleepStudio/build.yml?style=for-the-badge&label=BUILD"></a>
-  <a href="https://github.com/arunsasidharan84/CCS_SleepStudio/releases"><img alt="Unique Downloads" src="https://img.shields.io/github/downloads/arunsasidharan84/CCS_SleepStudio/total?style=for-the-badge&color=16a34a&label=UNIQUE%20DOWNLOADS"></a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/CCS-NIMHANS/CCS_SleepStudio?style=for-the-badge&color=2563eb&label=RELEASE"></a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/actions/workflows/build.yml"><img alt="Desktop build" src="https://img.shields.io/github/actions/workflow/status/CCS-NIMHANS/CCS_SleepStudio/build.yml?style=for-the-badge&label=BUILD"></a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases"><img alt="Unique Downloads" src="https://img.shields.io/github/downloads/CCS-NIMHANS/CCS_SleepStudio/total?style=for-the-badge&color=16a34a&label=UNIQUE%20DOWNLOADS"></a>
 </p>
 
 <p align="center">
   <b>Current version: 1.50.3</b> ·
   <a href="CHANGELOG.md">Detailed changelog</a> ·
-  <a href="https://github.com/arunsasidharan84/CCS_SleepStudio/issues">Report a problem</a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues">Report a problem</a>
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@
   <a href="#-key-features"><b>Key Features</b></a> &nbsp;•&nbsp;
   <a href="#-running--building-locally"><b>Build from Source</b></a> &nbsp;•&nbsp;
   <a href="CHANGELOG.md"><b>Release Notes</b></a> &nbsp;•&nbsp;
-  <a href="https://github.com/arunsasidharan84/CCS_SleepStudio/issues"><b>Report Issue</b></a>
+  <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues"><b>Report Issue</b></a>
 </p>
 
 ---
@@ -47,16 +47,16 @@ Pre-built standalone desktop installers and application bundles are published th
 
 | Platform | Variant | Package Type | Extracted App / Binary | Direct Download Link |
 | :--- | :--- | :--- | :--- | :--- |
-| **macOS** | **Full** | Universal ZIP | **`CCS Sleep Studio.app`** | [CCSSleepStudio-macos.zip](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-macos.zip) |
-| | **Lite** | Universal ZIP | **`CCS Sleep Studio.app`** | [CCSSleepStudio-lite-macos.zip](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-macos.zip) |
-| **Windows** | **Full** | x64 Installer EXE | `CCSSleepStudio-Installer.exe` | [CCSSleepStudio-Installer.exe](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-Installer.exe) |
-| | **Lite** | x64 Installer EXE | `CCSSleepStudio-lite-Installer.exe` | [CCSSleepStudio-lite-Installer.exe](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-Installer.exe) |
-| **Linux (Debian / Ubuntu)** | **Full** | x64 DEB Installer | `ccs-sleep-studio` | [CCSSleepStudio-linux-amd64.deb](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-linux-amd64.deb) |
-| | **Lite** | x64 DEB Installer | `ccs-sleep-studio` | [CCSSleepStudio-lite-linux-amd64.deb](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-linux-amd64.deb) |
-| **Linux (RHEL / AlmaLinux)** | **Full** | x86_64 RPM Installer | `ccs-sleep-studio` | [CCSSleepStudio-linux-x86_64.rpm](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-linux-x86_64.rpm) |
-| | **Lite** | x86_64 RPM Installer | `ccs-sleep-studio` | [CCSSleepStudio-lite-linux-x86_64.rpm](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-linux-x86_64.rpm) |
+| **macOS** | **Full** | Universal ZIP | **`CCS Sleep Studio.app`** | [CCSSleepStudio-macos.zip](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-macos.zip) |
+| | **Lite** | Universal ZIP | **`CCS Sleep Studio.app`** | [CCSSleepStudio-lite-macos.zip](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-macos.zip) |
+| **Windows** | **Full** | x64 Installer EXE | `CCSSleepStudio-Installer.exe` | [CCSSleepStudio-Installer.exe](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-Installer.exe) |
+| | **Lite** | x64 Installer EXE | `CCSSleepStudio-lite-Installer.exe` | [CCSSleepStudio-lite-Installer.exe](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-Installer.exe) |
+| **Linux (Debian / Ubuntu)** | **Full** | x64 DEB Installer | `ccs-sleep-studio` | [CCSSleepStudio-linux-amd64.deb](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-linux-amd64.deb) |
+| | **Lite** | x64 DEB Installer | `ccs-sleep-studio` | [CCSSleepStudio-lite-linux-amd64.deb](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-linux-amd64.deb) |
+| **Linux (RHEL / AlmaLinux)** | **Full** | x86_64 RPM Installer | `ccs-sleep-studio` | [CCSSleepStudio-linux-x86_64.rpm](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-linux-x86_64.rpm) |
+| | **Lite** | x86_64 RPM Installer | `ccs-sleep-studio` | [CCSSleepStudio-lite-linux-x86_64.rpm](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-linux-x86_64.rpm) |
 
-> 📦 **All Releases & Checksums:** View all published packages and assets on the **[GitHub Releases Page](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest)**.  
+> 📦 **All Releases & Checksums:** View all published packages and assets on the **[GitHub Releases Page](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest)**.  
 > 🐧 **Automated Linux Workstations:** For one-line multi-user server installation, see [Quick Install for Linux](#-quick-install-for-linux-servers--multi-user-workstations).
 
 #### 🍏 First-Time Launch for macOS Users (Gatekeeper Setup)
@@ -278,7 +278,7 @@ CCS Sleep Studio overcomes the main performance bottlenecks of standard Python-b
 To install the latest release automatically for all users on enterprise Linux servers (AlmaLinux, RHEL, Rocky, Fedora, Ubuntu, Debian), run this one-line command:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/arunsasidharan84/CCS_SleepStudio/main/scripts/install_linux.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/CCS-NIMHANS/CCS_SleepStudio/main/scripts/install_linux.sh | sudo bash
 ```
 
 Or from a local clone:

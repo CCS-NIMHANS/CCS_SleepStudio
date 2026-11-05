@@ -90,7 +90,7 @@ Version:        $version
 Release:        1%{?dist}
 Summary:        $description
 License:        Proprietary
-URL:            https://github.com/arunsasidharan84/CCS-Sleep-Studio
+URL:            https://github.com/CCS-NIMHANS/CCS_SleepStudio
 BuildArch:      x86_64
 Requires:       gtk3, glibc, libstdc++, xz-libs
 Recommends:     mpv-libs

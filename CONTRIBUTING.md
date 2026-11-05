@@ -4,7 +4,7 @@ Thank you for your interest in improving CCS Sleep Studio. Contributions of all 
 
 ## Getting help and reporting problems
 
-- **Questions and usage help:** open a [GitHub issue](https://github.com/arunsasidharan84/CCS_SleepStudio/issues) using the *Question* label, or start a discussion if Discussions are enabled.
+- **Questions and usage help:** open a [GitHub issue](https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues) using the *Question* label, or start a discussion if Discussions are enabled.
 - **Bugs:** open an issue using the *Bug report* template. Include the app version (shown in the About dialog and in `CHANGELOG.md`), your operating system, the file format, and the steps to reproduce. **Do not attach recordings that contain patient-identifiable information.** Use the anonymisation tool in the EEG Utilities module first, or share only a short, de-identified excerpt.
 - **Feature requests:** open an issue using the *Feature request* template and describe the research or clinical use case.
 
@@ -13,7 +13,7 @@ Thank you for your interest in improving CCS Sleep Studio. Contributions of all 
 Prerequisites are listed in the [README](README.md#-running--building-locally): the Flutter SDK (stable) and the Rust toolchain.
 
 ```sh
-git clone --recursive https://github.com/arunsasidharan84/CCS_SleepStudio.git
+git clone --recursive https://github.com/CCS-NIMHANS/CCS_SleepStudio.git
 cd CCS_SleepStudio
 
 # Native libraries and tests

@@ -6,7 +6,7 @@ CCS Sleep Studio is distributed as a self-contained, pre-compiled application. I
 
 ## 📥 Choosing Your Download Package
 
-From the [GitHub Releases Page](https://github.com/arunsasidharan84/CCS_SleepStudio/releases/latest), choose the package for your operating system:
+From the [GitHub Releases Page](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest), choose the package for your operating system:
 
 | Operating System | Recommended Package | When to use |
 | :--- | :--- | :--- |
