@@ -6,11 +6,11 @@ The tool now has a registry of base scorers plus an optional final SleepGPT sequ
 
 ## Installed Local Assets
 
-- `vendor/`: local Python packages installed into this folder, including `physioex`, `braindecode`, `sleepeeg`, `lunapi`, `usleep-api`, and dependencies.
+> **Note:** The main CCS Sleep Studio desktop application runs automated scoring natively via Rust and ONNX (`analyseNidra/assets/models/`), requiring zero Python installation.
+> If running standalone Python CLI experiments in this directory, install dependencies via `pip install -r requirements.txt`.
+
 - `models/pops/`: Luna POPS `s2` pretrained model resources.
 - `models/usleep_braindecode/`: Braindecode U-Sleep tutorial checkpoint for offline local inference.
-- `vendor/physioex/train/models/checkpoints/`: pretrained PhysioEx checkpoints for TinySleepNet, SeqSleepNet, and SleepTransformer.
-- `external/`: cloned upstream source repositories for U-Time/U-Sleep, Dreamento, DeepSleepNet, TinySleepNet, and SleepTransformer.
 
 ## Algorithms
 

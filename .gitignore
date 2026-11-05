@@ -47,33 +47,7 @@ scratch_out/
 !SamplePSGData/**
 SamplePSGData/**/.DS_Store
 
-# Large precompiled packages in vendor (installed via pip instead)
-backend/vendor/torch/
-backend/vendor/llvmlite/
-backend/vendor/numpy/
-backend/vendor/scipy/
-backend/vendor/sklearn/
-backend/vendor/scikit_learn-*/
-backend/vendor/matplotlib/
-backend/vendor/matplotlib-*/
-backend/vendor/numba/
-backend/vendor/PyQt5/
-backend/vendor/PyQt5-*/
-backend/vendor/pyqt5_qt5-*/
-backend/vendor/lightning/
-backend/vendor/lightning_fabric/
-backend/vendor/pytorch_lightning/
-backend/vendor/torchaudio/
-backend/vendor/transformers/
-backend/vendor/h5py/
-backend/vendor/grpc/
-backend/vendor/PIL/
-backend/vendor/Pillow-*/
-backend/vendor/cryptography/
-backend/vendor/cryptography-*/
-backend/vendor/protobuf-*/
-backend/vendor/soundfile.py
-backend/vendor/_soundfile*
-backend/vendor/pyqtgraph/
-backend/vendor/pyqtgraph-*/
+# Legacy Python backend vendor and external directories
+backend/vendor/
+backend/external/
 release_check.log

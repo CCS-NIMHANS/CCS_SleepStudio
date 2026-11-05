@@ -1,1 +1,0 @@
-class NotSparseError(AttributeError): pass
