@@ -297,16 +297,21 @@ class GroupStatsEngine {
         }
       }
 
+      final sortedLevels = uniqueVals.toList()..sort();
+      if (uniqueVals.length <= 2500) {
+        factorLevels[colName] = sortedLevels;
+        factorCounts[colName] = valCounts;
+      }
+
+      final hasDecimals = uniqueVals.any((v) => v.contains('.'));
       final isNumeric = numericCount > (mergedDataRows.length * 0.5) &&
-          !knownCatKeywords.any((k) => colLower == k || colLower.contains(k));
+          !knownCatKeywords.any((k) => colLower == k || colLower.contains(k)) &&
+          (uniqueVals.length > 20 || hasDecimals || (mergedDataRows.length <= 25 && uniqueVals.length > 1));
 
       if (isNumeric) {
         numCols.add(colName);
       } else {
         catCols.add(colName);
-        final sortedLevels = uniqueVals.toList()..sort();
-        factorLevels[colName] = sortedLevels;
-        factorCounts[colName] = valCounts;
       }
     }
 
@@ -350,12 +355,10 @@ class GroupStatsEngine {
 
     // Categorized sleep metrics map
     final catMetrics = <String, List<String>>{
-      'Macroarchitecture': metricColumns.where((m) =>
-          ['tst', 'se', 'sleep_efficiency', 'waso', 'sol', 'n1', 'n2', 'n3', 'rem', 'r_percentage', 'n3_percentage', 'n2_percentage', 'n1_percentage', 'efficiency'].any((k) => m.toLowerCase().contains(k))
-      ).toList(),
-      'Sleep Spindles': metricColumns.where((m) => m.toLowerCase().contains('sp_') || m.toLowerCase().contains('spindle')).toList(),
-      'Slow Waves': metricColumns.where((m) => m.toLowerCase().contains('sw_') || m.toLowerCase().contains('slow_wave')).toList(),
-      'Spectral Power': metricColumns.where((m) => ['psd', 'delta', 'theta', 'alpha', 'sigma', 'beta', 'gamma'].any((k) => m.toLowerCase().contains(k))).toList(),
+      'Macroarchitecture': metricColumns.where((m) => isMacroMetric(m)).toList(),
+      'Sleep Spindles': metricColumns.where((m) => !isMacroMetric(m) && (m.toLowerCase().contains('sp_') || m.toLowerCase().contains('spindle'))).toList(),
+      'Slow Waves': metricColumns.where((m) => !isMacroMetric(m) && (m.toLowerCase().contains('sw_') || m.toLowerCase().contains('slow_wave'))).toList(),
+      'Spectral Power': metricColumns.where((m) => !isMacroMetric(m) && ['psd', 'delta', 'theta', 'alpha', 'sigma', 'beta', 'gamma'].any((k) => m.toLowerCase().contains(k))).toList(),
       'CAP (Cyclic Alternating Pattern)': metricColumns.where((m) => m.toLowerCase().startsWith('cap_')).toList(),
       'Other Metrics': [],
     };
@@ -367,6 +370,8 @@ class GroupStatsEngine {
         ? (factorLevels[subjectIdCol]?.length ?? mergedDataRows.length)
         : mergedDataRows.length;
 
+    final filterableColumns = mergedHeaders.where((h) => !metricColumns.contains(h)).toList();
+
     return {
       'total_rows': mergedDataRows.length,
       'unique_subjects': uniqueSubjs,
@@ -374,13 +379,14 @@ class GroupStatsEngine {
       'categorical_columns': catCols,
       'metric_columns': metricColumns,
       'covariates': covariates,
-      'filterable_columns': catCols,
+      'filterable_columns': filterableColumns,
       'group_col': groupCol,
       'subgroup_col': subgroupCol,
       'subject_id': subjectIdCol,
       'channel_col': channelCol,
       'factor_levels': factorLevels,
       'factor_counts': factorCounts,
+      'column_distinct_values': factorLevels,
       'categorized_metrics': catMetrics,
     };
   }
@@ -389,13 +395,68 @@ class GroupStatsEngine {
   static bool isMacroMetric(String metricName) {
     final lower = metricName.toLowerCase().trim();
     if (lower.startsWith('cap_')) return true;
+
+    // Direct exact or known macroarchitecture metric names
+    const exactMacro = {
+      'trt', 'tst', 'spt', 'waso', 'sol', 'lzc',
+      'w_duration', 'n1_duration', 'n2_duration', 'n3_duration', 'r_duration', 'rem_duration', 'nrem_duration',
+      'w_percentage', 'n1_percentage', 'n2_percentage', 'n3_percentage', 'r_percentage', 'rem_percentage', 'nrem_percentage',
+      'sleep_efficiency', 'sleep_maintenance_efficiency', 'total_sleep_time', 'wake_after_sleep_onset',
+      'rem_latency', 'lat_rem', 'lat_n1', 'lat_n2', 'lat_n3', 'rem_count', 'n3_count',
+      'ahi', 'rdi', 'odi', 'plm_index', 'arousal_index'
+    };
+    if (exactMacro.contains(lower)) return true;
+
+    // Pattern matching for sleep architecture duration, percentage, onset, streak
+    final stagePrefixes = ['w_', 'n1_', 'n2_', 'n3_', 'r_', 'rem_', 'nrem_', 'sleep_'];
+    for (final prefix in stagePrefixes) {
+      if (lower.startsWith(prefix)) {
+        if (lower.contains('duration') ||
+            lower.contains('percent') ||
+            lower.contains('pct') ||
+            lower.contains('onset') ||
+            lower.contains('streak') ||
+            lower.contains('latency') ||
+            lower.contains('count') ||
+            lower.contains('efficiency')) {
+          return true;
+        }
+      }
+    }
+
     const macroKeywords = [
-      'sleep_efficiency', 'tst', 'waso', 'sol', 'n3_percentage',
-      'r_percentage', 'n1_percentage', 'n2_percentage', 'rem_latency',
-      'lat_rem', 'lat_n1', 'lat_n2', 'lat_n3', 'total_sleep_time',
-      'wake_after_sleep_onset', 'rem_count', 'n3_count'
+      'sleep_efficiency', 'tst', 'waso', 'sol', 'percentage',
+      'rem_latency', 'total_sleep_time', 'wake_after_sleep_onset',
+      'duration_min', 'stage_duration', 'longest_streak', 'length_of_streak',
+      'arousal_index', 'plm_index'
     ];
     return macroKeywords.any((k) => lower == k || lower.contains(k));
+  }
+
+  /// Deduplicates multi-channel rows for macroarchitecture metrics.
+  static List<List<String>> _deduplicateMacroRows(
+    List<List<String>> rows,
+    int? subjIdx,
+    int grpIdx,
+    int? subgrpIdx,
+    Map<String, int> colMap,
+  ) {
+    final sessionMap = <String, List<String>>{};
+    final fileIdx = colMap['source_file'] ?? colMap['file'] ?? colMap['filename'] ?? colMap['recording'];
+
+    for (final r in rows) {
+      final subj = (subjIdx != null && subjIdx < r.length && r[subjIdx].trim().isNotEmpty)
+          ? r[subjIdx].trim()
+          : (fileIdx != null && fileIdx < r.length ? r[fileIdx].trim() : '');
+      final grp = grpIdx < r.length ? r[grpIdx].trim() : '';
+      final subgrp = (subgrpIdx != null && subgrpIdx < r.length) ? r[subgrpIdx].trim() : '';
+      final file = (fileIdx != null && fileIdx < r.length) ? r[fileIdx].trim() : '';
+      final key = '$subj|$grp|$subgrp|$file';
+      if (!sessionMap.containsKey(key)) {
+        sessionMap[key] = r;
+      }
+    }
+    return sessionMap.values.toList();
   }
 
   /// Runs complete group statistical modeling and reporting in pure Dart.
@@ -405,6 +466,7 @@ class GroupStatsEngine {
     required String groupCol,
     String? subgroupCol,
     String? channelCol,
+    String? macroChannel = 'auto',
     String? subjectIdCol,
     List<String> extraFactors = const [],
     bool includeInteractions = true,
@@ -429,34 +491,71 @@ class GroupStatsEngine {
     // Merge external metadata if provided
     final colMap = {for (var i = 0; i < headers.length; i++) headers[i]: i};
 
-    // Apply interactive row exclusion filters
+    // Apply interactive row exclusion and inclusion filters
     if (rowFilters.isNotEmpty) {
       dataRows = dataRows.where((row) {
         for (final rf in rowFilters) {
           final col = rf['column'];
-          final op = rf['op'];
-          final filterVal = rf['value'] ?? '';
+          final op = rf['op'] ?? '==';
+          final filterVal = rf['value']?.trim() ?? '';
           final idx = colMap[col];
           if (idx == null || idx >= row.length) continue;
           final cellVal = row[idx].trim();
+          final cLower = cellVal.toLowerCase();
+          final fLower = filterVal.toLowerCase();
 
-          if (op == 'is_na') {
-            if (cellVal.isEmpty || cellVal.toLowerCase() == 'nan' || cellVal.toLowerCase() == 'na') {
-              return false;
-            }
-          } else if (op == '==') {
-            if (cellVal == filterVal) return false;
-          } else if (op == '!=') {
-            if (cellVal != filterVal) return false;
-          } else {
-            final cellNum = double.tryParse(cellVal);
-            final filterNum = double.tryParse(filterVal);
-            if (cellNum != null && filterNum != null) {
-              if (op == '>' && cellNum > filterNum) return false;
-              if (op == '<' && cellNum < filterNum) return false;
-              if (op == '>=' && cellNum >= filterNum) return false;
-              if (op == '<=' && cellNum <= filterNum) return false;
-            }
+          bool shouldDrop = false;
+
+          switch (op) {
+            case 'exclude_contains':
+            case 'contains':
+              if (cLower.contains(fLower)) shouldDrop = true;
+              break;
+            case 'include_contains':
+              if (!cLower.contains(fLower)) shouldDrop = true;
+              break;
+            case 'exclude_eq':
+            case '==':
+              if (cLower == fLower) shouldDrop = true;
+              break;
+            case 'include_eq':
+              if (cLower != fLower) shouldDrop = true;
+              break;
+            case 'exclude_neq':
+              if (cLower != fLower) shouldDrop = true;
+              break;
+            case 'include_neq':
+            case '!=':
+              if (cLower == fLower) shouldDrop = true;
+              break;
+            case 'exclude_na':
+            case 'is_na':
+              if (cellVal.isEmpty || cLower == 'nan' || cLower == 'na') shouldDrop = true;
+              break;
+            case 'include_not_na':
+            case 'not_na':
+              if (cellVal.isEmpty || cLower == 'nan' || cLower == 'na') shouldDrop = true;
+              break;
+            default:
+              final cellNum = double.tryParse(cellVal);
+              final filterNum = double.tryParse(filterVal);
+              if (cellNum != null && filterNum != null) {
+                if ((op == 'exclude_gt' || op == '>') && cellNum > filterNum) shouldDrop = true;
+                if ((op == 'exclude_gte' || op == '>=') && cellNum >= filterNum) shouldDrop = true;
+                if ((op == 'exclude_lt' || op == '<') && cellNum < filterNum) shouldDrop = true;
+                if ((op == 'exclude_lte' || op == '<=') && cellNum <= filterNum) shouldDrop = true;
+                if (op == 'include_gt' && cellNum <= filterNum) shouldDrop = true;
+                if (op == 'include_gte' && cellNum < filterNum) shouldDrop = true;
+                if (op == 'include_lt' && cellNum >= filterNum) shouldDrop = true;
+                if (op == 'include_lte' && cellNum > filterNum) shouldDrop = true;
+              } else if (op.startsWith('include_')) {
+                shouldDrop = true;
+              }
+              break;
+          }
+
+          if (shouldDrop) {
+            return false;
           }
         }
         return true;
@@ -520,19 +619,24 @@ class GroupStatsEngine {
         return true;
       }).toList();
 
-      // Deduplicate multi-channel rows for macro / CAP metrics across session
+      // Deduplicate or select single channel for macro / CAP metrics across session
       if (isMacro && channelCol != null) {
-        final sessionMap = <String, List<String>>{};
-        for (final r in metricRows) {
-          final subj = subjIdx != null && subjIdx < r.length ? r[subjIdx].trim() : '';
-          final grp = r[grpIdx].trim();
-          final subgrp = subgrpIdx != null && subgrpIdx < r.length ? r[subgrpIdx].trim() : '';
-          final key = '$subj|$grp|$subgrp';
-          if (!sessionMap.containsKey(key)) {
-            sessionMap[key] = r;
+        if (macroChannel != null &&
+            macroChannel != 'auto' &&
+            macroChannel != 'None' &&
+            chanIdx != null) {
+          final targetChan = macroChannel.toLowerCase().trim();
+          final filtered = metricRows
+              .where((r) => chanIdx < r.length && r[chanIdx].trim().toLowerCase() == targetChan)
+              .toList();
+          if (filtered.isNotEmpty) {
+            metricRows = filtered;
+          } else {
+            metricRows = _deduplicateMacroRows(metricRows, subjIdx, grpIdx, subgrpIdx, colMap);
           }
+        } else {
+          metricRows = _deduplicateMacroRows(metricRows, subjIdx, grpIdx, subgrpIdx, colMap);
         }
-        metricRows = sessionMap.values.toList();
       }
 
       if (metricRows.isEmpty) continue;
@@ -597,9 +701,16 @@ class GroupStatsEngine {
       final totalN = allValues.length;
       final grandMean = allValues.reduce((a, b) => a + b) / totalN;
 
+      double errorSS = 0.0;
+      double errorDF = 1.0;
+      double errorMS = 0.0;
+      double ssGroup = 0.0;
+      int kGroup = orderedGroups.length;
+
       if (subgrpIdx == null) {
         // ONE-WAY ANOVA across primary group
         final k = orderedGroups.length;
+        kGroup = k;
         var ssBetween = 0.0;
         var ssWithin = 0.0;
         for (final grp in orderedGroups) {
@@ -612,13 +723,18 @@ class GroupStatsEngine {
           }
         }
 
-        final dfBetween = (k - 1).toDouble();
-        final dfWithin = (totalN - k).toDouble();
+        final dfBetween = math.max(1, k - 1).toDouble();
+        final dfWithin = math.max(1, totalN - k).toDouble();
         final msBetween = dfBetween > 0 ? ssBetween / dfBetween : 0.0;
         final msWithin = dfWithin > 0 ? ssWithin / dfWithin : 0.0;
         final fStat = msWithin > 0 ? msBetween / msWithin : 0.0;
         final pVal = StatMath.fDistributionPValue(fStat, dfBetween, dfWithin);
         final etaSq = (ssBetween + ssWithin) > 0 ? ssBetween / (ssBetween + ssWithin) : 0.0;
+
+        errorSS = ssWithin;
+        errorDF = dfWithin;
+        errorMS = msWithin;
+        ssGroup = ssBetween;
 
         modelEffects.add({
           'term': groupCol,
@@ -633,6 +749,7 @@ class GroupStatsEngine {
         // TWO-WAY FACTORIAL ANOVA (Group x Subgroup)
         final kA = orderedGroups.length;
         final kB = orderedSubgroups.length;
+        kGroup = kA;
 
         var ssA = 0.0;
         var ssB = 0.0;
@@ -650,6 +767,7 @@ class GroupStatsEngine {
             ssA += grpVals.length * math.pow(mA - grandMean, 2);
           }
         }
+        ssGroup = ssA;
 
         // Subgroup B margins
         for (final subgrp in orderedSubgroups) {
@@ -687,6 +805,10 @@ class GroupStatsEngine {
         final msA = ssA / dfA;
         final msB = ssB / dfB;
         final msAB = ssAB / dfAB;
+
+        errorSS = ssWithin;
+        errorDF = dfWithin;
+        errorMS = msWithin;
 
         final fA = msWithin > 0 ? msA / msWithin : 0.0;
         final fB = msWithin > 0 ? msB / msWithin : 0.0;
@@ -726,6 +848,82 @@ class GroupStatsEngine {
             'df_num': dfAB.toInt(),
             'df_denom': dfWithin.toInt(),
             'eta_sq': etaAB,
+            'n_obs': totalN,
+          });
+        }
+      }
+
+      // Model additional experimental factors (Factor 3, Factor 4, Factor 5, etc.)
+      for (final ef in extraFactors) {
+        if (ef == groupCol || ef == effectiveSubgroupCol || ef == subjectIdCol) continue;
+        final efIdx = colMap[ef];
+        if (efIdx == null) continue;
+
+        final efLevels = <String>{};
+        for (final r in metricRows) {
+          if (efIdx < r.length && r[efIdx].trim().isNotEmpty) {
+            efLevels.add(r[efIdx].trim());
+          }
+        }
+        final kEF = efLevels.length;
+        if (kEF < 2) continue;
+
+        var ssEF = 0.0;
+        for (final lvl in efLevels) {
+          final lvlVals = metricRows
+              .where((r) => efIdx < r.length && r[efIdx].trim() == lvl)
+              .map((r) => double.parse(r[metricColIdx]))
+              .toList();
+          if (lvlVals.isNotEmpty) {
+            final mEF = lvlVals.reduce((a, b) => a + b) / lvlVals.length;
+            ssEF += lvlVals.length * math.pow(mEF - grandMean, 2);
+          }
+        }
+
+        final dfEF = math.max(1, kEF - 1).toDouble();
+        final msEF = ssEF / dfEF;
+        final fEF = (errorMS > 0) ? (msEF / errorMS) : 0.0;
+        final pEF = StatMath.fDistributionPValue(fEF, dfEF, errorDF);
+        final etaEF = (ssEF + errorSS) > 0 ? (ssEF / (ssEF + errorSS)) : 0.0;
+
+        modelEffects.add({
+          'term': ef,
+          'f_stat': fEF,
+          'p_value': pEF,
+          'df_num': dfEF.toInt(),
+          'df_denom': errorDF.toInt(),
+          'eta_sq': etaEF,
+          'n_obs': totalN,
+        });
+
+        if (includeInteractions) {
+          var ssInt = 0.0;
+          final cellVals = <String, List<double>>{};
+          for (final r in metricRows) {
+            final grp = r[grpIdx].trim();
+            final el = r[efIdx].trim();
+            final v = double.parse(r[metricColIdx]);
+            cellVals.putIfAbsent('$grp|$el', () => []).add(v);
+          }
+          for (final entry in cellVals.entries) {
+            final mC = entry.value.reduce((a, b) => a + b) / entry.value.length;
+            ssInt += entry.value.length * math.pow(mC - grandMean, 2);
+          }
+          final ssAForInt = ssGroup;
+          final ssIntPure = math.max(0.0, ssInt - ssAForInt - ssEF);
+          final dfInt = math.max(1, (kGroup - 1) * (kEF - 1)).toDouble();
+          final msInt = ssIntPure / dfInt;
+          final fInt = (errorMS > 0) ? (msInt / errorMS) : 0.0;
+          final pInt = StatMath.fDistributionPValue(fInt, dfInt, errorDF);
+          final etaInt = (ssIntPure + errorSS) > 0 ? (ssIntPure / (ssIntPure + errorSS)) : 0.0;
+
+          modelEffects.add({
+            'term': '$groupCol × $ef',
+            'f_stat': fInt,
+            'p_value': pInt,
+            'df_num': dfInt.toInt(),
+            'df_denom': errorDF.toInt(),
+            'eta_sq': etaInt,
             'n_obs': totalN,
           });
         }
@@ -916,12 +1114,33 @@ class GroupStatsEngine {
         }
       }
 
+      // Determine descriptive model title based on factors
+      final modeledFactorsCount = 1 + (subgrpIdx != null ? 1 : 0) + extraFactors.where((ef) => colMap.containsKey(ef) && ef != groupCol && ef != effectiveSubgroupCol).length;
+      final String modelType;
+      if (subjectIdCol != null && subjectIdCol.isNotEmpty && subjectSet.isNotEmpty) {
+        if (modeledFactorsCount == 1) {
+          modelType = 'One-Way Repeated-Measures LMM';
+        } else if (modeledFactorsCount == 2) {
+          modelType = 'Two-Way Factorial LMM';
+        } else {
+          modelType = 'Multi-Factor LMM ($modeledFactorsCount Fixed Factors + Random Intercept)';
+        }
+      } else {
+        if (modeledFactorsCount == 1) {
+          modelType = 'One-Way ANOVA';
+        } else if (modeledFactorsCount == 2) {
+          modelType = 'Two-Way Factorial ANOVA';
+        } else if (modeledFactorsCount == 3) {
+          modelType = 'Three-Way Factorial ANOVA';
+        } else {
+          modelType = 'Multi-Factor ANOVA ($modeledFactorsCount Factors)';
+        }
+      }
+
       // Add to metric results
       resultsList.add({
         'metric': metric,
-        'model_type': subgrpIdx != null
-            ? 'Two-Way Factorial ANOVA'
-            : (subjectSet.isNotEmpty ? 'Linear Mixed Model (LMM)' : 'One-Way ANOVA'),
+        'model_type': modelType,
         'n_obs': totalN,
         'n_subjects': subjectSet.isNotEmpty ? subjectSet.length : totalN,
         'is_macroarchitecture': isMacro,
@@ -1106,6 +1325,11 @@ class GroupStatsEngine {
       buf.writeln('<div class="card">');
       buf.writeln('<h2>${i + 1}. $metric ${isMacro ? '<span class="badge-macro">Macroarchitecture / Channel-Invariant</span>' : ''}</h2>');
       buf.writeln('<div class="meta">Model: <strong>$modelType</strong> · Total Observations: $nObs · Unique Subjects: $nSubj</div>');
+
+      final safeMetric = metric.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+      buf.writeln('<div style="text-align: center; margin: 18px 0;">');
+      buf.writeln('  <img src="plots/${safeMetric}_boxplot.png" alt="$metric Plot" style="max-width: 100%; max-height: 480px; height: auto; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" onerror="this.style.display=\'none\'" />');
+      buf.writeln('</div>');
 
       // Model Effects Table
       buf.writeln('<h3>Model Effects & Omnibus Tests</h3>');

@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <b>Current version: 1.50.3</b> ·
+  <b>Current version: 1.50.4</b> ·
   <a href="CHANGELOG.md">Detailed changelog</a> ·
   <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues">Report a problem</a>
 </p>
@@ -100,8 +100,13 @@ Built using **Flutter** for a high-framerate 60+ FPS UI and a native **Rust** co
 
 ---
 
-## 🌟 What's New in Version 1.50.x (Latest: 1.50.3)
+## 🌟 What's New in Version 1.50.x (Latest: 1.50.4)
 
+* **Macroarchitecture Channel Selection & Auto-Deduplication (v1.50.4):** Prevents inflated observation counts ($n$) for hypnogram sleep architecture metrics (`N2_duration_min`, `W_duration`, `TST`, `WASO`, `SOL`, `Sleep_efficiency`, etc.) in multi-channel/regional master sheets. Users can now choose `Auto-Deduplicate (1 observation per recording)` or select a dedicated macro channel (e.g., `Central`, `Frontal`) to guarantee exact recording/subject counts without multi-channel row duplication.
+* **Interactive Column Value Inclusion & Exclusion Filtering (v1.50.4):** Replaced manual text filters with 1-click interactive checkbox chips for ANY column from the master sheet (e.g., `source_file`, `Status`, `Diagnosis`, `Chan`). Includes `Select All`, `Deselect All`, and live substring search with `Exclude Matching` and `Include Only Matching` buttons.
+* **Multi-Factor ANOVA/LMM Beyond 4 Factors with Live Formula Preview (v1.50.4):** Seamlessly add 3rd, 4th, 5th, and higher-order factors to factorial ANOVA and mixed-effects models via a dedicated `+ Add Factor` selector, numbered factor chips, and a live LaTeX/monospace model formula badge.
+* **Automatic Publication Plot Generation (v1.50.4):** Offscreen rendering automatically saves publication-grade PNG figures (`<metric>_boxplot.png` and omnibus/contrast scalp topoplots) to `<output_dir>/plots/` on every analysis run, alongside interactive HTML reports.
+* **Clean Slow Wave Parameter Nomenclature (v1.50.4):** Removed legacy `_all` prefix from slow wave metrics (`sw_Count`, `sw_density_calc`, `sw_Duration`, `sw_PTP`, `sw_Slope`, etc.) while maintaining seamless backward compatibility.
 * **App Version Traceability in All CSV Exports (v1.50.3):** Embedded an `'App Version'` column across all compiled master sheets (`AnalyseNidra_channel_master_sheet_*.csv`, `AnalyseNidra_regional_master_sheet_*.csv`), polygraphy summaries (`psg_batch_summary_*.csv`), inter-rater comparison tables (`Batch_Scoring_Comparison_Master_*.csv`), and group statistical reports (`GroupStats_*.csv`) ensuring complete provenance traceback for research publications.
 * **Batch Collation & Macro Sleep Architecture Parity (v1.50.3):** Enforced strict separation between cohort demographic metadata lookups and raw hypnogram sleep architecture metrics (`TRT`, `TST`, `WASO`, `SOL`, `Sleep_efficiency`, `W_duration`, `N1_duration`, `N2_duration`, `N3_duration`, `R_duration`), preventing demographic overwrites and verifying 100% recording length parity across large cohorts.
 * **Smart Batch Metadata Matching & Collision Prevention (v1.50.2):** Introduced high-cardinality uniqueness heuristics in `guessKeyColumn` that automatically penalize categorical grouping columns (`groupID`, `ageID`, `Gender`, `Status`), prioritizing unique identifiers (`napID`, `Subject_Code`) and using delimiter-bounded token matching to prevent cohort collapsing.

@@ -133,7 +133,7 @@ Implemented and verified:
 - Slow-wave/sigma coupling
 - TensorPAC modulation index: maximum error below `2e-17`
 - Regional aggregation and 253-column CSV export, including
-  `sw_all_density_calc` (slow-wave count per total NREM minute)
+  `sw_density_calc` (slow-wave count per total NREM minute)
 
 FOOOF uses a native bounded Levenberg-Marquardt fit. Spectral band averages are
 within about `0.002` on the verification recording. Some multi-peak spectra can

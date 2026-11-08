@@ -40,6 +40,7 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
   String? _selectedSubgroupCol;
   String? _selectedSubjectIdCol;
   String? _selectedChannelCol;
+  String _macroChannelSelection = 'auto'; // 'auto' or specific channel name
   final Set<String> _selectedExtraFactors = {};
   bool _includeInteractions = true;
   final Set<String> _selectedCovariates = {};
@@ -49,10 +50,15 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
   final Map<String, Set<String>> _excludedFactorLabels = {};
   final Map<String, List<String>> _customFactorOrder = {};
 
+  // Interactive Sheet Column Filters (pick any column to check/uncheck values)
+  final Set<String> _activeInteractiveFilterCols = {};
+  String? _draftAddFilterCol;
+  final Map<String, String> _columnSearchQuery = {};
+
   // Interactive Row Value Filters: list of {'column': col, 'op': op, 'value': val}
   final List<Map<String, String>> _rowFilters = [];
   String? _draftFilterColumn;
-  String _draftFilterOp = '==';
+  String _draftFilterOp = 'exclude_contains';
 
   // Modelling preferences
   String _preferredModel = 'auto'; // 'auto', 'lmm', 'glm'
@@ -185,9 +191,13 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
         _selectedSubgroupCol = jsonMap['subgroup_col'] as String? ?? 'None';
         _selectedSubjectIdCol = jsonMap['subject_id'] as String?;
         _selectedChannelCol = jsonMap['channel_col'] as String? ?? 'None';
+        _macroChannelSelection = 'auto';
         _selectedExtraFactors.clear();
         _excludedFactorLabels.clear();
         _customFactorOrder.clear();
+        _activeInteractiveFilterCols.clear();
+        _columnSearchQuery.clear();
+        _draftAddFilterCol = null;
         _rowFilters.clear();
 
         final filterableCols = (jsonMap['filterable_columns'] as List<dynamic>? ?? []).cast<String>();
@@ -286,6 +296,7 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
         channelCol: (_selectedChannelCol != null && _selectedChannelCol != 'None')
             ? _selectedChannelCol
             : null,
+        macroChannel: _macroChannelSelection,
         subjectIdCol: _selectedSubjectIdCol,
         extraFactors: extraFactorsClean,
         includeInteractions: _includeInteractions,
@@ -307,13 +318,78 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
         },
       );
 
+      final outputDir = jsonMap['output_dir'] as String? ?? '';
+      final plotsDir = Directory('$outputDir/plots');
+      if (!plotsDir.existsSync()) {
+        plotsDir.createSync(recursive: true);
+      }
+
+      final resList = (jsonMap['results'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      var savedImageCount = 0;
+
       setState(() {
+        _progressStatus = 'Rendering publication plot figures…';
+        _consoleLogs.add('[stats] Rendering publication plot figures to $outputDir/plots…');
+      });
+
+      for (final res in resList) {
+        final metric = res['metric'] as String;
+        final safeMetric = metric.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+        final descriptives = (res['descriptives'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+        final posthocs = (res['posthoc_contrasts'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+        final modelType = res['model_type'] as String? ?? 'ANOVA';
+        final nObs = res['n_obs'] ?? 0;
+        final nSubj = res['n_subjects'] ?? 0;
+
+        try {
+          if (descriptives.isNotEmpty) {
+            final boxplotBytes = await GroupStatsBoxplotWidget.renderBoxplotImage(
+              descriptives: descriptives,
+              posthocs: posthocs,
+              metric: metric,
+              title: '$metric · $modelType · N=$nSubj subjects (n=$nObs obs)',
+            );
+            final boxplotFile = File('${plotsDir.path}/${safeMetric}_boxplot.png');
+            await boxplotFile.writeAsBytes(boxplotBytes);
+            savedImageCount++;
+          }
+
+          final etfceChannels = (res['etfce_channels'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+          if (etfceChannels.isNotEmpty) {
+            final topoBytes = await GroupStatsTopoplotWidget.renderTopoplotImage(
+              channels: etfceChannels,
+              title: '$metric — Omnibus Spatial eTFCE Cluster Map (* p<0.05)',
+            );
+            await File('${plotsDir.path}/${safeMetric}_topoplot_omnibus.png').writeAsBytes(topoBytes);
+            savedImageCount++;
+          }
+
+          final posthocTopos = (res['posthoc_topoplots'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+          for (final pair in posthocTopos) {
+            final contrast = pair['contrast'] as String? ?? 'contrast';
+            final safeContrast = contrast.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+            final pairChs = (pair['channels'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+            if (pairChs.isNotEmpty) {
+              final pairBytes = await GroupStatsTopoplotWidget.renderTopoplotImage(
+                channels: pairChs,
+                title: '$metric — Post-Hoc: $contrast (* p<0.05)',
+              );
+              await File('${plotsDir.path}/${safeMetric}_topoplot_$safeContrast.png').writeAsBytes(pairBytes);
+              savedImageCount++;
+            }
+          }
+        } catch (imgErr) {
+          debugPrint('Failed to save plot image for $metric: $imgErr');
+        }
+      }
+
+      setState(() {
+        _consoleLogs.add('[stats] Saved $savedImageCount plot images to $outputDir/plots');
         _analysisResults = jsonMap;
-        final resList = (jsonMap['results'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
         if (resList.isNotEmpty) {
           _selectedResultMetric = resList.first['metric'] as String?;
         }
-        _statusMessage = 'Analysis completed! Generated ${resList.length} metric models, interactive plots, and reports.';
+        _statusMessage = 'Analysis completed! Generated ${resList.length} metric models, saved $savedImageCount plot images to /plots, and generated reports.';
       });
     } catch (e) {
       _showSnack('Analysis failed: $e');
@@ -338,6 +414,42 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
       }
     } catch (e) {
       _showSnack('Unable to open path: $e');
+    }
+  }
+
+  Future<void> _exportCurrentPlot() async {
+    if (_analysisResults == null) return;
+    final resList = (_analysisResults!['results'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final res = resList.firstWhere(
+      (r) => r['metric'] == _selectedResultMetric,
+      orElse: () => resList.isNotEmpty ? resList.first : {},
+    );
+    if (res.isEmpty) return;
+    final metric = res['metric'] as String;
+    final safeMetric = metric.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+    final descriptives = (res['descriptives'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final posthocs = (res['posthoc_contrasts'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final modelType = res['model_type'] as String? ?? 'ANOVA';
+    final nObs = res['n_obs'] ?? 0;
+    final nSubj = res['n_subjects'] ?? 0;
+
+    try {
+      final outputDir = _analysisResults!['output_dir'] as String? ?? '';
+      final plotsDir = Directory('$outputDir/plots');
+      if (!plotsDir.existsSync()) {
+        plotsDir.createSync(recursive: true);
+      }
+      final outPath = '${plotsDir.path}/${safeMetric}_boxplot.png';
+      final bytes = await GroupStatsBoxplotWidget.renderBoxplotImage(
+        descriptives: descriptives,
+        posthocs: posthocs,
+        metric: metric,
+        title: '$metric · $modelType · N=$nSubj subjects (n=$nObs obs)',
+      );
+      await File(outPath).writeAsBytes(bytes);
+      _showSnack('Saved plot image to: $outPath');
+    } catch (e) {
+      _showSnack('Failed to export plot: $e');
     }
   }
 
@@ -519,6 +631,33 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
     );
   }
 
+  String _computeModelFormulaPreview() {
+    final factors = <String>[];
+    if (_selectedGroupCol != null && _selectedGroupCol!.isNotEmpty) {
+      factors.add(_selectedGroupCol!);
+    }
+    if (_selectedSubgroupCol != null && _selectedSubgroupCol != 'None') {
+      factors.add(_selectedSubgroupCol!);
+    }
+    if (_selectedChannelCol != null && _selectedChannelCol != 'None') {
+      factors.add(_selectedChannelCol!);
+    }
+    for (final ef in _selectedExtraFactors) {
+      if (!factors.contains(ef)) factors.add(ef);
+    }
+
+    final factorsStr = factors.isEmpty ? '1' : factors.join(' + ');
+    final randomStr = (_selectedSubjectIdCol != null && _selectedSubjectIdCol != 'None')
+        ? ' + (1 | $_selectedSubjectIdCol)'
+        : '';
+    final count = factors.length;
+    final modelName = (_selectedSubjectIdCol != null && _selectedSubjectIdCol != 'None')
+        ? '$count-Factor Linear Mixed Model (LMM)'
+        : (count >= 3 ? '$count-Way Factorial ANOVA' : (count == 2 ? 'Two-Way ANOVA' : 'One-Way ANOVA'));
+
+    return 'Formula: Metric ~ $factorsStr$randomStr   [$modelName]';
+  }
+
   Widget _buildConfigurationCard() {
     final catCols = (_inspectionData?['categorical_columns'] as List<dynamic>? ?? []).cast<String>();
     final allCols = [
@@ -631,50 +770,166 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                 ),
               ],
             ),
-            if (extraFactorCandidates.isNotEmpty) ...[
+            if (_selectedChannelCol != null && _selectedChannelCol != 'None') ...[
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text(
-                    'Additional Factors (Multi-Factor LMM/GLM):',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 16),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: _includeInteractions,
-                        visualDensity: VisualDensity.compact,
-                        onChanged: (v) => setState(() => _includeInteractions = v ?? true),
-                      ),
-                      const Text('Include interaction terms (Group × Factor)', style: TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  for (final ef in extraFactorCandidates)
-                    FilterChip(
-                      label: Text(ef),
-                      selected: _selectedExtraFactors.contains(ef),
-                      onSelected: (sel) {
-                        setState(() {
-                          if (sel) {
-                            _selectedExtraFactors.add(ef);
-                          } else {
-                            _selectedExtraFactors.remove(ef);
-                          }
-                        });
-                      },
+              Builder(
+                builder: (context) {
+                  final chanLevels = _levelsForFactor(_selectedChannelCol);
+                  final currentMacro = (chanLevels.contains(_macroChannelSelection) || _macroChannelSelection == 'auto')
+                      ? _macroChannelSelection
+                      : 'auto';
+                  return DropdownButtonFormField<String>(
+                    value: currentMacro,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Macroarchitecture Channel Selection',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      helperText: 'Select channel for whole-night sleep staging / macro metrics (prevents multi-channel duplicate rows)',
                     ),
-                ],
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'auto',
+                        child: Text('Auto-Deduplicate (1 observation per recording / subject)'),
+                      ),
+                      for (final ch in chanLevels)
+                        DropdownMenuItem(
+                          value: ch,
+                          child: Text('Filter to channel: $ch only for macro metrics'),
+                        ),
+                    ],
+                    onChanged: (val) => setState(() => _macroChannelSelection = val ?? 'auto'),
+                  );
+                },
               ),
             ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F7FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.playlist_add, size: 18, color: Color(0xFF1E40AF)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Additional Model Factors (Factor 3, Factor 4, Factor 5, …)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E40AF)),
+                      ),
+                      const Spacer(),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: _includeInteractions,
+                            visualDensity: VisualDensity.compact,
+                            onChanged: (v) => setState(() => _includeInteractions = v ?? true),
+                          ),
+                          const Text('Include interaction terms (Factor × Factor)', style: TextStyle(fontSize: 11.5)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Expand your statistical design beyond 2 factors to 3-Way, 4-Way, or N-Way Factorial ANOVA and Linear Mixed Models (LMM).',
+                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (extraFactorCandidates.where((c) => !_selectedExtraFactors.contains(c)).isNotEmpty)
+                        SizedBox(
+                          width: 280,
+                          child: DropdownButtonFormField<String>(
+                            value: null,
+                            hint: Text(
+                              '＋ Add Factor ${_selectedExtraFactors.length + 3}…',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            ),
+                            items: [
+                              for (final col in extraFactorCandidates.where((c) => !_selectedExtraFactors.contains(c)))
+                                DropdownMenuItem(value: col, child: Text(col, overflow: TextOverflow.ellipsis)),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedExtraFactors.add(val);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      for (var i = 0; i < _selectedExtraFactors.length; i++)
+                        Chip(
+                          backgroundColor: const Color(0xFFDBEAFE),
+                          side: const BorderSide(color: Color(0xFF93C5FD)),
+                          avatar: CircleAvatar(
+                            radius: 10,
+                            backgroundColor: const Color(0xFF1D4ED8),
+                            child: Text(
+                              '${i + 3}',
+                              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          label: Text(
+                            'Factor ${i + 3}: ${_selectedExtraFactors.elementAt(i)}',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A)),
+                          ),
+                          deleteIcon: const Icon(Icons.close, size: 14, color: Color(0xFF1E3A8A)),
+                          onDeleted: () {
+                            setState(() {
+                              _selectedExtraFactors.remove(_selectedExtraFactors.elementAt(i));
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.functions, size: 16, color: Color(0xFF1F4E79)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _computeModelFormulaPreview(),
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             const Text('Continuous Covariates to Adjust For:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
@@ -759,10 +1014,41 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
     );
   }
 
-  Widget _buildFactorFilterAndOrderSection(String title, String factorCol) {
+  Widget _buildFactorFilterAndOrderSection(
+    String title,
+    String factorCol, {
+    bool isRemovable = false,
+    VoidCallback? onRemove,
+  }) {
     final levels = _levelsForFactor(factorCol);
-    if (levels.isEmpty) return const SizedBox.shrink();
+    if (levels.isEmpty) {
+      if (isRemovable) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            children: [
+              Text('$title: $factorCol', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+              const SizedBox(width: 8),
+              const Text('No discrete values found for this column (or > 2500 unique values).', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.close, size: 16), onPressed: onRemove),
+            ],
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
     final excluded = _excludedFactorLabels.putIfAbsent(factorCol, () => <String>{});
+    final search = (_columnSearchQuery[factorCol] ?? '').toLowerCase().trim();
+    final visibleLevels = search.isEmpty
+        ? levels
+        : levels.where((l) => l.toLowerCase().contains(search)).toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -783,10 +1069,30 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
               ),
               const SizedBox(width: 8),
               const Text(
-                '(Click checkbox to include/exclude label · Use arrows ◀ ▶ to set plot order)',
+                '(Click checkbox to include/exclude · ◀ ▶ to reorder)',
                 style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
               const Spacer(),
+              TextButton(
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () {
+                  setState(() {
+                    excluded.clear();
+                  });
+                },
+                child: const Text('Select All', style: TextStyle(fontSize: 11)),
+              ),
+              const SizedBox(width: 4),
+              TextButton(
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () {
+                  setState(() {
+                    excluded.addAll(levels);
+                  });
+                },
+                child: const Text('Deselect All', style: TextStyle(fontSize: 11)),
+              ),
+              const SizedBox(width: 4),
               if (excluded.isNotEmpty || _customFactorOrder.containsKey(factorCol))
                 TextButton(
                   style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
@@ -798,19 +1104,90 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                   },
                   child: const Text('Reset', style: TextStyle(fontSize: 11)),
                 ),
+              if (isRemovable) ...[
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+                  tooltip: 'Remove this column filter',
+                  onPressed: onRemove,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ],
           ),
+          if (levels.length > 15) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                SizedBox(
+                  width: 200,
+                  height: 30,
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search values in $factorCol…',
+                      prefixIcon: const Icon(Icons.search, size: 14),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    onChanged: (q) => setState(() => _columnSearchQuery[factorCol] = q),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  onPressed: () {
+                    final q = (_columnSearchQuery[factorCol] ?? '').toLowerCase().trim();
+                    if (q.isEmpty) return;
+                    setState(() {
+                      for (final lvl in levels) {
+                        if (lvl.toLowerCase().contains(q)) {
+                          excluded.add(lvl);
+                        }
+                      }
+                    });
+                  },
+                  child: const Text('Exclude Matching', style: TextStyle(fontSize: 11)),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  onPressed: () {
+                    final q = (_columnSearchQuery[factorCol] ?? '').toLowerCase().trim();
+                    if (q.isEmpty) return;
+                    setState(() {
+                      for (final lvl in levels) {
+                        if (!lvl.toLowerCase().contains(q)) {
+                          excluded.add(lvl);
+                        } else {
+                          excluded.remove(lvl);
+                        }
+                      }
+                    });
+                  },
+                  child: const Text('Include Only Matching', style: TextStyle(fontSize: 11)),
+                ),
+                if (search.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    'Showing ${visibleLevels.length} of ${levels.length}',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (var i = 0; i < levels.length; i++)
+              for (var i = 0; i < visibleLevels.length; i++)
                 Builder(
                   builder: (context) {
-                    final lvl = levels[i];
+                    final lvl = visibleLevels[i];
                     final isIncluded = !excluded.contains(lvl);
                     final count = _countForFactorLevel(factorCol, lvl);
+                    final originalIdx = levels.indexOf(lvl);
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -823,14 +1200,15 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          InkWell(
-                            onTap: i > 0 ? () => _moveFactorLevel(factorCol, lvl, -1) : null,
-                            child: Icon(
-                              Icons.chevron_left,
-                              size: 16,
-                              color: i > 0 ? const Color(0xFF1F4E79) : Colors.grey.shade400,
+                          if (!isRemovable)
+                            InkWell(
+                              onTap: originalIdx > 0 ? () => _moveFactorLevel(factorCol, lvl, -1) : null,
+                              child: Icon(
+                                Icons.chevron_left,
+                                size: 16,
+                                color: originalIdx > 0 ? const Color(0xFF1F4E79) : Colors.grey.shade400,
+                              ),
                             ),
-                          ),
                           InkWell(
                             onTap: () {
                               setState(() {
@@ -853,7 +1231,7 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '${i + 1}. $lvl ($count)',
+                                    isRemovable ? '$lvl ($count)' : '${originalIdx + 1}. $lvl ($count)',
                                     style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: isIncluded ? FontWeight.w600 : FontWeight.normal,
@@ -865,14 +1243,15 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                               ),
                             ),
                           ),
-                          InkWell(
-                            onTap: i < levels.length - 1 ? () => _moveFactorLevel(factorCol, lvl, 1) : null,
-                            child: Icon(
-                              Icons.chevron_right,
-                              size: 16,
-                              color: i < levels.length - 1 ? const Color(0xFF1F4E79) : Colors.grey.shade400,
+                          if (!isRemovable)
+                            InkWell(
+                              onTap: originalIdx < levels.length - 1 ? () => _moveFactorLevel(factorCol, lvl, 1) : null,
+                              child: Icon(
+                                Icons.chevron_right,
+                                size: 16,
+                                color: originalIdx < levels.length - 1 ? const Color(0xFF1F4E79) : Colors.grey.shade400,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     );
@@ -919,12 +1298,93 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
               _buildFactorFilterAndOrderSection('Primary Grouping Factor', _selectedGroupCol!),
             if (_selectedSubgroupCol != null && _selectedSubgroupCol != 'None')
               _buildFactorFilterAndOrderSection('Secondary / Within-Subject Factor', _selectedSubgroupCol!),
-            for (final ef in _selectedExtraFactors)
-              _buildFactorFilterAndOrderSection('Additional Factor', ef),
-            const Divider(height: 18),
+            if (_selectedChannelCol != null &&
+                _selectedChannelCol != 'None' &&
+                _selectedChannelCol != _selectedGroupCol &&
+                _selectedChannelCol != _selectedSubgroupCol &&
+                !_selectedExtraFactors.contains(_selectedChannelCol))
+              _buildFactorFilterAndOrderSection('Channel / Spatial Factor', _selectedChannelCol!),
+            for (var i = 0; i < _selectedExtraFactors.length; i++)
+              _buildFactorFilterAndOrderSection('Factor ${i + 3}', _selectedExtraFactors.elementAt(i)),
+
+            const Divider(height: 24),
+            Row(
+              children: [
+                const Icon(Icons.rule, size: 18, color: Color(0xFF1F4E79)),
+                const SizedBox(width: 6),
+                const Text(
+                  'Interactive Sheet Column Filters (Pick Values to Include / Exclude):',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF1F4E79)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Pick any column from the master sheet (e.g. source_file, Status, Diagnosis) to view all distinct values and interactively check/uncheck values to include or exclude.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                SizedBox(
+                  width: 250,
+                  child: DropdownButtonFormField<String>(
+                    value: filterableCols.contains(_draftAddFilterCol) ? _draftAddFilterCol : null,
+                    isExpanded: true,
+                    hint: const Text('Select Sheet Column…', style: TextStyle(fontSize: 12)),
+                    decoration: const InputDecoration(
+                      labelText: 'Sheet Column',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      for (final c in filterableCols.where((c) => !_activeInteractiveFilterCols.contains(c)))
+                        DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (v) => setState(() => _draftAddFilterCol = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    if (_draftAddFilterCol != null) {
+                      setState(() {
+                        _activeInteractiveFilterCols.add(_draftAddFilterCol!);
+                        _draftAddFilterCol = null;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Column Filter'),
+                ),
+              ],
+            ),
+            if (_activeInteractiveFilterCols.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              for (final col in _activeInteractiveFilterCols)
+                _buildFactorFilterAndOrderSection(
+                  'Sheet Column Filter',
+                  col,
+                  isRemovable: true,
+                  onRemove: () {
+                    setState(() {
+                      _activeInteractiveFilterCols.remove(col);
+                      _excludedFactorLabels.remove(col);
+                      _columnSearchQuery.remove(col);
+                    });
+                  },
+                ),
+            ],
+
+            const Divider(height: 24),
             const Text(
-              'Filter Out Rows with Particular Values:',
+              'Filter Rows with Specific Rule (Text or Numeric):',
               style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF1F4E79)),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Additional rule-based filtering (e.g. contains "MCI", numeric > 10, or exclude NA).',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -950,29 +1410,36 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                   ),
                 ),
                 SizedBox(
-                  width: 210,
+                  width: 250,
                   child: DropdownButtonFormField<String>(
                     value: _draftFilterOp,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                      labelText: 'Exclusion Rule',
+                      labelText: 'Filter Rule',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
                     items: const [
-                      DropdownMenuItem(value: '==', child: Text('Exclude where == value')),
-                      DropdownMenuItem(value: '!=', child: Text('Exclude where != value (Keep only)')),
-                      DropdownMenuItem(value: '<', child: Text('Exclude where < value')),
-                      DropdownMenuItem(value: '<=', child: Text('Exclude where <= value')),
-                      DropdownMenuItem(value: '>', child: Text('Exclude where > value')),
-                      DropdownMenuItem(value: '>=', child: Text('Exclude where >= value')),
-                      DropdownMenuItem(value: 'contains', child: Text('Exclude where text contains')),
-                      DropdownMenuItem(value: 'is_na', child: Text('Exclude missing / empty rows')),
+                      DropdownMenuItem(value: 'exclude_contains', child: Text('Exclude where text contains')),
+                      DropdownMenuItem(value: 'exclude_eq', child: Text('Exclude where == (exact match)')),
+                      DropdownMenuItem(value: 'include_contains', child: Text('Include only where text contains')),
+                      DropdownMenuItem(value: 'include_eq', child: Text('Include only where == (exact match)')),
+                      DropdownMenuItem(value: 'exclude_neq', child: Text('Exclude where != value')),
+                      DropdownMenuItem(value: 'exclude_gt', child: Text('Exclude where > value')),
+                      DropdownMenuItem(value: 'exclude_gte', child: Text('Exclude where >= value')),
+                      DropdownMenuItem(value: 'exclude_lt', child: Text('Exclude where < value')),
+                      DropdownMenuItem(value: 'exclude_lte', child: Text('Exclude where <= value')),
+                      DropdownMenuItem(value: 'include_gt', child: Text('Include only where > value')),
+                      DropdownMenuItem(value: 'include_gte', child: Text('Include only where >= value')),
+                      DropdownMenuItem(value: 'include_lt', child: Text('Include only where < value')),
+                      DropdownMenuItem(value: 'include_lte', child: Text('Include only where <= value')),
+                      DropdownMenuItem(value: 'exclude_na', child: Text('Exclude missing / empty rows (NA)')),
+                      DropdownMenuItem(value: 'include_not_na', child: Text('Include only non-missing rows (Not NA)')),
                     ],
-                    onChanged: (v) => setState(() => _draftFilterOp = v ?? '=='),
+                    onChanged: (v) => setState(() => _draftFilterOp = v ?? 'exclude_contains'),
                   ),
                 ),
-                if (_draftFilterOp != 'is_na')
+                if (_draftFilterOp != 'exclude_na' && _draftFilterOp != 'include_not_na' && _draftFilterOp != 'is_na')
                   SizedBox(
                     width: 220,
                     child: TextField(
@@ -1000,15 +1467,16 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                   onPressed: () {
                     if (_draftFilterColumn == null) return;
                     final val = _rowFilterValueController.text.trim();
-                    if (_draftFilterOp != 'is_na' && val.isEmpty) {
-                      _showSnack('Enter or pick a value for the row filter.');
+                    final isNa = _draftFilterOp == 'exclude_na' || _draftFilterOp == 'include_not_na' || _draftFilterOp == 'is_na';
+                    if (!isNa && val.isEmpty) {
+                      _showSnack('Enter or pick a value for the filter rule.');
                       return;
                     }
                     setState(() {
                       _rowFilters.add({
                         'column': _draftFilterColumn!,
                         'op': _draftFilterOp,
-                        'value': _draftFilterOp == 'is_na' ? 'NA' : val,
+                        'value': isNa ? 'NA' : val,
                       });
                       _rowFilterValueController.clear();
                     });
@@ -1029,16 +1497,88 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (var i = 0; i < _rowFilters.length; i++)
-                    Chip(
-                      backgroundColor: Colors.orange.shade50,
-                      label: Text(
-                        'Exclude ${_rowFilters[i]['column']} ${_rowFilters[i]['op']} ${_rowFilters[i]['value']}',
-                        style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900, fontWeight: FontWeight.w600),
-                      ),
-                      deleteIcon: const Icon(Icons.close, size: 15),
-                      onDeleted: () => setState(() => _rowFilters.removeAt(i)),
+                  for (var i = 0; i < _rowFilters.length; i++) ...[
+                    Builder(
+                      builder: (context) {
+                        final rf = _rowFilters[i];
+                        final col = rf['column'] ?? '';
+                        final op = rf['op'] ?? 'exclude_contains';
+                        final val = rf['value'] ?? '';
+                        final isInclude = op.startsWith('include');
+
+                        String opText;
+                        switch (op) {
+                          case 'exclude_contains':
+                          case 'include_contains':
+                          case 'contains':
+                            opText = 'contains "$val"';
+                            break;
+                          case 'exclude_eq':
+                          case 'include_eq':
+                          case '==':
+                            opText = '== "$val"';
+                            break;
+                          case 'exclude_neq':
+                          case 'include_neq':
+                          case '!=':
+                            opText = '!= "$val"';
+                            break;
+                          case 'exclude_na':
+                          case 'is_na':
+                            opText = 'is missing (NA)';
+                            break;
+                          case 'include_not_na':
+                          case 'not_na':
+                            opText = 'is not NA';
+                            break;
+                          case 'exclude_gt':
+                          case 'include_gt':
+                          case '>':
+                            opText = '> $val';
+                            break;
+                          case 'exclude_gte':
+                          case 'include_gte':
+                          case '>=':
+                            opText = '>= $val';
+                            break;
+                          case 'exclude_lt':
+                          case 'include_lt':
+                          case '<':
+                            opText = '< $val';
+                            break;
+                          case 'exclude_lte':
+                          case 'include_lte':
+                          case '<=':
+                            opText = '<= $val';
+                            break;
+                          default:
+                            opText = '$op "$val"';
+                        }
+
+                        final prefix = isInclude ? 'Include' : 'Exclude';
+                        final chipLabel = '$prefix $col $opText';
+
+                        return Chip(
+                          avatar: Icon(
+                            isInclude ? Icons.check_circle_outline : Icons.block,
+                            size: 14,
+                            color: isInclude ? const Color(0xFF1B5E20) : Colors.orange.shade900,
+                          ),
+                          backgroundColor: isInclude ? const Color(0xFFE8F5E9) : Colors.orange.shade50,
+                          label: Text(
+                            chipLabel,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: isInclude ? const Color(0xFF1B5E20) : Colors.orange.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          deleteIcon: const Icon(Icons.close, size: 15),
+                          onDeleted: () => setState(() => _rowFilters.removeAt(i)),
+                        );
+                      },
                     ),
+                  ],
                 ],
               ),
             ],
@@ -1270,6 +1810,12 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                   label: const Text('Open Folder'),
                 ),
                 const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _openPath('$outputDir/plots'),
+                  icon: const Icon(Icons.photo_library_outlined, size: 16),
+                  label: const Text('Plot Images (PNG)'),
+                ),
+                const SizedBox(width: 8),
                 if (_analysisResults!['html_path'] != null)
                   FilledButton.icon(
                     onPressed: () => _openPath(_analysisResults!['html_path'] as String),
@@ -1395,6 +1941,11 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                     onSelectionChanged: (s) => setState(() => _activePlotView = s.first),
                   ),
                 ),
+              OutlinedButton.icon(
+                onPressed: _exportCurrentPlot,
+                icon: const Icon(Icons.download, size: 14),
+                label: const Text('Save Plot (PNG)'),
+              ),
             ],
           ),
           const SizedBox(height: 12),

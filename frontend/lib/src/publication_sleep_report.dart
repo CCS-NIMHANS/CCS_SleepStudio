@@ -368,9 +368,9 @@ String _buildMicrostructurePage(
     p.text(_metric(row, 'sp_Count', decimals: 0), 122, y, size: 7.5);
     p.text(_metric(row, 'sp_density'), 182, y, size: 7.5);
     p.text(_metric(row, 'sp_Frequency'), 252, y, size: 7.5);
-    p.text(_metric(row, 'sw_all_Count', decimals: 0), 322, y, size: 7.5);
-    p.text(_metric(row, 'sw_all_PTP'), 390, y, size: 7.5);
-    p.text(_metric(row, 'sw_all_Slope'), 462, y, size: 7.5);
+    p.text(_metric(row, 'sw_Count', decimals: 0), 322, y, size: 7.5);
+    p.text(_metric(row, 'sw_PTP'), 390, y, size: 7.5);
+    p.text(_metric(row, 'sw_Slope'), 462, y, size: 7.5);
     y -= 18;
   }
 
@@ -389,17 +389,17 @@ String _buildMicrostructurePage(
     p.text(row['Chan'] ?? '-', 52, y, bold: true, size: 7.5);
     p.text(_metric(row, 'pac_all_max_MI', decimals: 4), 106, y, size: 7.2);
     p.text(_metric(row, 'pac_all_max_gcPAC', decimals: 4), 156, y, size: 7.2);
-    p.text(_metric(row, 'sw_all_ndPAC', decimals: 4), 204, y, size: 7.2);
-    p.text(_metric(row, 'sw_all_MVL', decimals: 3), 252, y, size: 7.2);
-    p.text(_metric(row, 'sw_all_PLV', decimals: 3), 296, y, size: 7.2);
-    p.text(_metric(row, 'sw_all_PhaseConsistency', decimals: 3), 340, y, size: 7.2);
+    p.text(_metric(row, 'sw_ndPAC', decimals: 4), 204, y, size: 7.2);
+    p.text(_metric(row, 'sw_MVL', decimals: 3), 252, y, size: 7.2);
+    p.text(_metric(row, 'sw_PLV', decimals: 3), 296, y, size: 7.2);
+    p.text(_metric(row, 'sw_PhaseConsistency', decimals: 3), 340, y, size: 7.2);
     p.text(
       '${_metric(row, 'pac_all_max_sp')} / ${_metric(row, 'pac_all_max_sw')}',
       388,
       y,
       size: 7.2,
     );
-    p.text(_metric(row, 'sw_all_PhaseAtSigmaPeak'), 470, y, size: 7.2);
+    p.text(_metric(row, 'sw_PhaseAtSigmaPeak'), 470, y, size: 7.2);
     y -= 18;
   }
   p.text(
@@ -417,9 +417,9 @@ String _buildMicrostructurePage(
     final row = selected[i];
     final cx = 130.0 + i * 175;
     final cy = 205.0;
-    final phase = _number(row, 'sw_all_PhaseAtSigmaPeak') ?? 0;
+    final phase = _number(row, 'sw_PhaseAtSigmaPeak') ?? 0;
     final mi = _number(row, 'pac_all_max_MI') ?? 0;
-    final ndPac = _number(row, 'sw_all_ndPAC') ?? 0;
+    final ndPac = _number(row, 'sw_ndPAC') ?? 0;
     p.circle(cx, cy, 48, stroke: _lightGray);
     p.line(cx - 48, cy, cx + 48, cy, color: _lightGray);
     p.line(cx, cy - 48, cx, cy + 48, color: _lightGray);
@@ -440,8 +440,8 @@ String _buildMicrostructurePage(
     p.text(row['Chan'] ?? 'Region', cx - 26, 266, bold: true, size: 9);
     p.text('MI ${mi.toStringAsFixed(4)}', cx - 32, 141, size: 7.5);
     p.text('ndPAC ${ndPac.toStringAsFixed(4)}', cx - 38, 129, size: 7.5);
-    final mvl = _number(row, 'sw_all_MVL');
-    final plv = _number(row, 'sw_all_PLV');
+    final mvl = _number(row, 'sw_MVL');
+    final plv = _number(row, 'sw_PLV');
     if (mvl != null || plv != null) {
       p.text(
         'MVL ${mvl?.toStringAsFixed(3) ?? '-'} | PLV ${plv?.toStringAsFixed(3) ?? '-'}',
@@ -1070,8 +1070,8 @@ String _buildInterpretationPage(
   if (includePages[1]) {
     final spindleDensity = _rowMean(rows, 'sp_density');
     final nremMinutes = _number(architecture, 'NREM_duration');
-    final slowWaveDensity = _rowMean(rows, 'sw_all_density_calc') ??
-        ((nremMinutes ?? 0) > 0 ? (_rowMean(rows, 'sw_all_Count') ?? 0) / nremMinutes! : null);
+    final slowWaveDensity = _rowMean(rows, 'sw_density_calc') ??
+        ((nremMinutes ?? 0) > 0 ? (_rowMean(rows, 'sw_Count') ?? 0) / nremMinutes! : null);
     final mi = _rowMean(rows, 'pac_all_max_MI');
     final lzc = _number(architecture, 'LZc') ?? _rowMean(rows, 'LZc');
 
@@ -1210,13 +1210,13 @@ String _microstructureInterpretation(
   final spindleDensity = _rowMean(rows, 'sp_density');
   final nremMinutes = _number(architecture, 'NREM_duration');
   final slowWaveDensity =
-      _rowMean(rows, 'sw_all_density_calc') ??
+      _rowMean(rows, 'sw_density_calc') ??
       ((nremMinutes ?? 0) > 0
-          ? (_rowMean(rows, 'sw_all_Count') ?? 0) / nremMinutes!
+          ? (_rowMean(rows, 'sw_Count') ?? 0) / nremMinutes!
           : null);
   final mi = _rowMean(rows, 'pac_all_max_MI');
-  final ndPac = _rowMean(rows, 'sw_all_ndPAC');
-  final phase = _rowMean(rows, 'sw_all_PhaseAtSigmaPeak');
+  final ndPac = _rowMean(rows, 'sw_ndPAC');
+  final phase = _rowMean(rows, 'sw_PhaseAtSigmaPeak');
   final strongest = _regionalExtreme(rows, 'pac_all_max_MI', highest: true);
   final values = <String>[
     if (spindleDensity != null)
@@ -1225,10 +1225,10 @@ String _microstructureInterpretation(
       'slow-wave density ${slowWaveDensity.toStringAsFixed(2)}/NREM min',
     if (mi != null) 'PAC MI ${mi.toStringAsFixed(4)}',
     if (ndPac != null) 'ndPAC ${ndPac.toStringAsFixed(4)}',
-    if (_rowMean(rows, 'sw_all_MVL') != null)
-      'mean vector length ${_rowMean(rows, 'sw_all_MVL')!.toStringAsFixed(3)}',
-    if (_rowMean(rows, 'sw_all_PLV') != null)
-      'phase-locking value ${_rowMean(rows, 'sw_all_PLV')!.toStringAsFixed(3)}',
+    if (_rowMean(rows, 'sw_MVL') != null)
+      'mean vector length ${_rowMean(rows, 'sw_MVL')!.toStringAsFixed(3)}',
+    if (_rowMean(rows, 'sw_PLV') != null)
+      'phase-locking value ${_rowMean(rows, 'sw_PLV')!.toStringAsFixed(3)}',
     if (phase != null) 'sigma-peak phase ${phase.toStringAsFixed(2)} rad',
   ];
   if (values.isEmpty) {
@@ -1279,10 +1279,10 @@ String _complexityInterpretation(List<Map<String, String>> rows) {
 
 bool _hasMicrostructure(List<Map<String, String>> rows) {
   return _rowMean(rows, 'sp_density') != null ||
-      _rowMean(rows, 'sw_all_density_calc') != null ||
-      _rowMean(rows, 'sw_all_Count') != null ||
+      _rowMean(rows, 'sw_density_calc') != null ||
+      _rowMean(rows, 'sw_Count') != null ||
       _rowMean(rows, 'pac_all_max_MI') != null ||
-      _rowMean(rows, 'sw_all_ndPAC') != null;
+      _rowMean(rows, 'sw_ndPAC') != null;
 }
 
 bool _hasAperiodic(List<Map<String, String>> rows) {
@@ -1991,6 +1991,10 @@ double? _number(Map<String, String> row, String key) {
     raw = row['sp_all_${key.substring(3)}']?.trim();
   } else if ((raw == null || raw.isEmpty) && key.startsWith('sp_all_')) {
     raw = row['sp_${key.substring(7)}']?.trim();
+  } else if ((raw == null || raw.isEmpty) && key.startsWith('sw_')) {
+    raw = row['sw_all_${key.substring(3)}']?.trim();
+  } else if ((raw == null || raw.isEmpty) && key.startsWith('sw_all_')) {
+    raw = row['sw_${key.substring(7)}']?.trim();
   } else if ((raw == null || raw.isEmpty) && key.startsWith('accs_')) {
     raw = row[key.substring(5)]?.trim();
   } else if ((raw == null || raw.isEmpty) && !key.startsWith('accs_')) {

@@ -6824,19 +6824,19 @@ class _CCSSleepStudioHomeState extends State<CCSSleepStudioHome>
           size: 8.5,
         );
         p.drawText(
-          _csvMetric(row, 'sw_all_Count', decimals: 0),
+          _csvMetric(row, 'sw_Count', decimals: 0),
           300,
           ry,
           size: 8.5,
         );
         p.drawText(
-          _csvMetric(row, 'sw_all_PTP', decimals: 1),
+          _csvMetric(row, 'sw_PTP', decimals: 1),
           380,
           ry,
           size: 8.5,
         );
         p.drawText(
-          _csvMetric(row, 'sw_all_ndPAC', decimals: 3),
+          _csvMetric(row, 'sw_ndPAC', decimals: 3),
           475,
           ry,
           size: 8.5,
@@ -15943,6 +15943,10 @@ String _csvMetric(Map<String, String> row, String key, {int decimals = 2}) {
     raw = row['sp_all_${key.substring(3)}'];
   } else if ((raw == null || raw.isEmpty) && key.startsWith('sp_all_')) {
     raw = row['sp_${key.substring(7)}'];
+  } else if ((raw == null || raw.isEmpty) && key.startsWith('sw_')) {
+    raw = row['sw_all_${key.substring(3)}'];
+  } else if ((raw == null || raw.isEmpty) && key.startsWith('sw_all_')) {
+    raw = row['sw_${key.substring(7)}'];
   }
   final value = double.tryParse(raw ?? '');
   if (value == null || !value.isFinite) return '-';

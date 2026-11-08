@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'group_statistics_engine.dart';
 
@@ -84,6 +86,36 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
       ],
     );
   }
+
+  /// Renders publication-grade boxplot to PNG image bytes offscreen.
+  static Future<Uint8List> renderBoxplotImage({
+    required List<Map<String, dynamic>> descriptives,
+    required List<Map<String, dynamic>> posthocs,
+    required String metric,
+    String unit = '',
+    String? title,
+    double width = 1100,
+    double height = 620,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), Paint()..color = const Color(0xFFFFFFFF));
+
+    final painter = _BoxplotPainter(
+      descriptives: descriptives,
+      posthocs: posthocs,
+      metric: metric,
+      unit: unit,
+      title: title,
+      showLegend: true,
+    );
+    painter.paint(canvas, Size(width, height));
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(width.toInt(), height.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
 }
 
 class _BoxplotPainter extends CustomPainter {
@@ -92,12 +124,16 @@ class _BoxplotPainter extends CustomPainter {
     required this.posthocs,
     required this.metric,
     required this.unit,
+    this.title,
+    this.showLegend = false,
   });
 
   final List<Map<String, dynamic>> descriptives;
   final List<Map<String, dynamic>> posthocs;
   final String metric;
   final String unit;
+  final String? title;
+  final bool showLegend;
 
   static const List<Color> _palette = [
     Color(0xFF1F4E79),
@@ -136,10 +172,11 @@ class _BoxplotPainter extends CustomPainter {
     final yMin = globalMin - valRange * 0.05;
     final yMax = globalMax + valRange * 0.22;
 
+    final hasTitle = title != null && title!.isNotEmpty;
     const marginLeft = 65.0;
     final marginRight = size.width - 20.0;
-    const marginTop = 20.0;
-    final marginBottom = size.height - 65.0;
+    final marginTop = hasTitle ? 48.0 : 20.0;
+    final marginBottom = showLegend ? size.height - 65.0 : size.height - 65.0;
 
     final plotWidth = marginRight - marginLeft;
     final plotHeight = marginBottom - marginTop;
@@ -147,6 +184,21 @@ class _BoxplotPainter extends CustomPainter {
     double mapY(double val) {
       final frac = (val - yMin) / (yMax - yMin);
       return marginBottom - frac * plotHeight;
+    }
+
+    if (hasTitle) {
+      final titleTp = TextPainter(
+        text: TextSpan(
+          text: title,
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F4E79),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: size.width - marginLeft - 20);
+      titleTp.paint(canvas, const Offset(marginLeft, 16));
     }
 
     // ─── 1. DRAW GRID & Y-AXIS ──────────────────────────────────
@@ -344,6 +396,32 @@ class _BoxplotPainter extends CustomPainter {
 
       bracketLevel++;
     }
+
+    if (showLegend) {
+      final legendItems = [
+        (const Color(0xFF1F4E79), 'Box (IQR: Q1–Q3)'),
+        (Colors.black87, 'Median Line (—)'),
+        (const Color(0xFFD32F2F), 'Mean Marker (▲)'),
+        (Colors.grey.shade600, 'Observations (Jittered •)'),
+        (const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+      ];
+      var curX = marginLeft;
+      final legendY = size.height - 22.0;
+      for (final item in legendItems) {
+        final boxPaint = Paint()..color = item.$1;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(curX, legendY + 2, 11, 9), const Radius.circular(2)),
+          boxPaint,
+        );
+        curX += 15;
+        final tp = TextPainter(
+          text: TextSpan(text: item.$2, style: TextStyle(fontSize: 9.5, color: Colors.grey.shade800)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(curX, legendY));
+        curX += tp.width + 15;
+      }
+    }
   }
 
   @override
@@ -360,6 +438,39 @@ class GroupStatsTopoplotWidget extends StatefulWidget {
 
   final List<Map<String, dynamic>> etfceChannels;
   final List<Map<String, dynamic>> posthocTopoplots;
+
+  /// Renders scalp topoplot to PNG image bytes offscreen.
+  static Future<Uint8List> renderTopoplotImage({
+    required List<Map<String, dynamic>> channels,
+    required String title,
+    double size = 520,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final totalH = size + 80.0;
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, totalH));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size, totalH), Paint()..color = const Color(0xFFFFFFFF));
+
+    final titleTp = TextPainter(
+      text: TextSpan(
+        text: title,
+        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Color(0xFF1F4E79)),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: size - 32);
+    titleTp.paint(canvas, Offset((size - titleTp.width) / 2, 16));
+
+    canvas.save();
+    canvas.translate(0, 44);
+    final painter = _TopoplotPainter(etfceChannels: channels);
+    painter.paint(canvas, Size(size, size));
+    canvas.restore();
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), totalH.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
 
   @override
   State<GroupStatsTopoplotWidget> createState() => _GroupStatsTopoplotWidgetState();

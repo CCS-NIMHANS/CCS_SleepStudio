@@ -279,57 +279,57 @@ pub fn compile(
                 spindle.map_or(f64::NAN, |value| event_density(value.count, nrem_minutes)),
             ),
             (
-                "sw_all_Count".into(),
+                "sw_Count".into(),
                 slow_wave.map_or(f64::NAN, |value| value.count as f64),
             ),
             (
-                "sw_all_density_calc".into(),
+                "sw_density_calc".into(),
                 slow_wave.map_or(f64::NAN, |value| {
                     event_density(value.count, total_nrem_minutes)
                 }),
             ),
             (
-                "sw_all_Duration".into(),
+                "sw_Duration".into(),
                 slow_wave.map_or(f64::NAN, |value| value.duration),
             ),
             (
-                "sw_all_ValNegPeak".into(),
+                "sw_ValNegPeak".into(),
                 slow_wave.map_or(f64::NAN, |value| value.val_neg_peak),
             ),
             (
-                "sw_all_ValPosPeak".into(),
+                "sw_ValPosPeak".into(),
                 slow_wave.map_or(f64::NAN, |value| value.val_pos_peak),
             ),
             (
-                "sw_all_PTP".into(),
+                "sw_PTP".into(),
                 slow_wave.map_or(f64::NAN, |value| value.ptp),
             ),
             (
-                "sw_all_Slope".into(),
+                "sw_Slope".into(),
                 slow_wave.map_or(f64::NAN, |value| value.slope),
             ),
             (
-                "sw_all_Frequency".into(),
+                "sw_Frequency".into(),
                 slow_wave.map_or(f64::NAN, |value| value.frequency),
             ),
             (
-                "sw_all_PhaseAtSigmaPeak".into(),
+                "sw_PhaseAtSigmaPeak".into(),
                 slow_wave.map_or(f64::NAN, |value| value.phase_at_sigma_peak),
             ),
             (
-                "sw_all_ndPAC".into(),
+                "sw_ndPAC".into(),
                 slow_wave.map_or(f64::NAN, |value| value.nd_pac),
             ),
             (
-                "sw_all_MVL".into(),
+                "sw_MVL".into(),
                 slow_wave.map_or(f64::NAN, |value| value.mvl),
             ),
             (
-                "sw_all_PLV".into(),
+                "sw_PLV".into(),
                 slow_wave.map_or(f64::NAN, |value| value.plv),
             ),
             (
-                "sw_all_PhaseConsistency".into(),
+                "sw_PhaseConsistency".into(),
                 slow_wave.map_or(f64::NAN, |value| value.phase_consistency),
             ),
             ("pac_all_max_MI".into(), pac_or(|p| p.maximum)),
@@ -474,19 +474,19 @@ fn event_columns() -> Vec<String> {
         "sp_Oscillations",
         "sp_Symmetry",
         "sp_density",
-        "sw_all_Count",
-        "sw_all_density_calc",
-        "sw_all_Duration",
-        "sw_all_ValNegPeak",
-        "sw_all_ValPosPeak",
-        "sw_all_PTP",
-        "sw_all_Slope",
-        "sw_all_Frequency",
-        "sw_all_PhaseAtSigmaPeak",
-        "sw_all_ndPAC",
-        "sw_all_MVL",
-        "sw_all_PLV",
-        "sw_all_PhaseConsistency",
+        "sw_Count",
+        "sw_density_calc",
+        "sw_Duration",
+        "sw_ValNegPeak",
+        "sw_ValPosPeak",
+        "sw_PTP",
+        "sw_Slope",
+        "sw_Frequency",
+        "sw_PhaseAtSigmaPeak",
+        "sw_ndPAC",
+        "sw_MVL",
+        "sw_PLV",
+        "sw_PhaseConsistency",
         "pac_all_max_MI",
         "pac_all_max_sp",
         "pac_all_max_sw",
@@ -772,7 +772,7 @@ pub fn marker_columns(analysis: &str) -> &'static [&'static str] {
     match analysis {
         "core" => &["N1_Delta_PSD", "N2_Delta_PSD", "N3_Delta_PSD", "REM_Delta_PSD"],
         "spindles" => &["sp_Count"],
-        "slow_waves" => &["sw_all_Count"],
+        "slow_waves" => &["sw_Count", "sw_all_Count"],
         "pac" => &["pac_all_max_MI"],
         "nlg" => &[
             "NLG_SW_NREM",
@@ -845,6 +845,6 @@ mod tests {
         assert_eq!(event_density(120, 60.0), 2.0);
         assert!(event_density(120, 0.0).is_nan());
         assert!(event_density(120, f64::NAN).is_nan());
-        assert!(event_columns().contains(&"sw_all_density_calc".to_string()));
+        assert!(event_columns().contains(&"sw_density_calc".to_string()));
     }
 }
