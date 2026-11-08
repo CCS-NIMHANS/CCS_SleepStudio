@@ -3,7 +3,7 @@ message: "If you use CCS Sleep Studio in your research, please cite it using the
 type: software
 title: "CCS Sleep Studio"
 abstract: "A cross-platform desktop suite for sleep EEG visualisation, manual scoring, automated sleep staging and quantitative polysomnographic analysis."
-version: 1.50.4
+version: 1.51.0
 date-released: 2026-10-30
 license: MIT
 repository-code: "https://github.com/CCS-NIMHANS/CCS_SleepStudio"
