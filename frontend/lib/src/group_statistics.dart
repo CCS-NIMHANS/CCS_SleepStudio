@@ -647,13 +647,40 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
     }
 
     final factorsStr = factors.isEmpty ? '1' : factors.join(' + ');
-    final randomStr = (_selectedSubjectIdCol != null && _selectedSubjectIdCol != 'None')
-        ? ' + (1 | $_selectedSubjectIdCol)'
-        : '';
+    final isGlm = _preferredModel == 'glm';
+    final hasSubject = _selectedSubjectIdCol != null && _selectedSubjectIdCol != 'None';
+    final useRandom = !isGlm && hasSubject;
+
+    final randomStr = useRandom ? ' + (1 | $_selectedSubjectIdCol)' : '';
     final count = factors.length;
-    final modelName = (_selectedSubjectIdCol != null && _selectedSubjectIdCol != 'None')
-        ? '$count-Factor Linear Mixed Model (LMM)'
-        : (count >= 3 ? '$count-Way Factorial ANOVA' : (count == 2 ? 'Two-Way ANOVA' : 'One-Way ANOVA'));
+    final String modelName;
+    if (isGlm) {
+      if (count <= 1) {
+        modelName = 'One-Way ANOVA (GLM)';
+      } else if (count == 2) {
+        modelName = 'Two-Way Factorial ANOVA (GLM)';
+      } else if (count == 3) {
+        modelName = 'Three-Way Factorial ANOVA (GLM)';
+      } else {
+        modelName = 'Multi-Factor ANOVA (GLM - $count Factors)';
+      }
+    } else if (useRandom) {
+      if (count <= 1) {
+        modelName = 'One-Way LMM (Random Intercept)';
+      } else if (count == 2) {
+        modelName = 'Two-Way Factorial LMM';
+      } else {
+        modelName = '$count-Factor Linear Mixed Model (LMM)';
+      }
+    } else {
+      if (count <= 1) {
+        modelName = 'One-Way ANOVA';
+      } else if (count == 2) {
+        modelName = 'Two-Way Factorial ANOVA';
+      } else {
+        modelName = 'Multi-Factor ANOVA ($count Factors)';
+      }
+    }
 
     return 'Formula: Metric ~ $factorsStr$randomStr   [$modelName]';
   }

@@ -701,6 +701,11 @@ class GroupStatsEngine {
       final totalN = allValues.length;
       final grandMean = allValues.reduce((a, b) => a + b) / totalN;
 
+      final bool isSingleObsPerSubject = (subjIdx == null || subjectSet.isEmpty || totalN <= subjectSet.length || isMacro);
+      final bool useLmm = (preferredModel == 'lmm' || (preferredModel == 'auto' && !isSingleObsPerSubject)) &&
+          !isSingleObsPerSubject &&
+          (preferredModel != 'glm');
+
       double errorSS = 0.0;
       double errorDF = 1.0;
       double errorMS = 0.0;
@@ -810,24 +815,76 @@ class GroupStatsEngine {
         errorDF = dfWithin;
         errorMS = msWithin;
 
-        final fA = msWithin > 0 ? msA / msWithin : 0.0;
-        final fB = msWithin > 0 ? msB / msWithin : 0.0;
-        final fAB = msWithin > 0 ? msAB / msWithin : 0.0;
+        double msErrorBetween = msWithin;
+        double dfDenomBetween = dfWithin;
+        double msErrorWithin = msWithin;
+        double dfDenomWithin = dfWithin;
 
-        final pA = StatMath.fDistributionPValue(fA, dfA, dfWithin);
-        final pB = StatMath.fDistributionPValue(fB, dfB, dfWithin);
-        final pAB = StatMath.fDistributionPValue(fAB, dfAB, dfWithin);
+        if (useLmm && subjectSet.length > kA) {
+          // Partition subject random intercept variance:
+          final subjVals = <String, List<double>>{};
+          final subjGroup = <String, String>{};
+          for (final r in metricRows) {
+            final s = r[subjIdx].trim();
+            final g = r[grpIdx].trim();
+            final v = double.parse(r[metricColIdx]);
+            subjVals.putIfAbsent(s, () => []).add(v);
+            subjGroup[s] = g;
+          }
 
-        final etaA = (ssA + ssWithin) > 0 ? ssA / (ssA + ssWithin) : 0.0;
-        final etaB = (ssB + ssWithin) > 0 ? ssB / (ssB + ssWithin) : 0.0;
-        final etaAB = (ssAB + ssWithin) > 0 ? ssAB / (ssAB + ssWithin) : 0.0;
+          final groupMeans = <String, double>{};
+          for (final grp in orderedGroups) {
+            final vals = metricRows.where((r) => r[grpIdx].trim() == grp).map((r) => double.parse(r[metricColIdx])).toList();
+            if (vals.isNotEmpty) {
+              groupMeans[grp] = vals.reduce((a, b) => a + b) / vals.length;
+            }
+          }
+
+          var ssSubjWithinGroup = 0.0;
+          for (final entry in subjVals.entries) {
+            final s = entry.key;
+            final vals = entry.value;
+            final mSubj = vals.reduce((a, b) => a + b) / vals.length;
+            final grp = subjGroup[s] ?? '';
+            final mGrp = groupMeans[grp] ?? grandMean;
+            ssSubjWithinGroup += vals.length * math.pow(mSubj - mGrp, 2);
+          }
+
+          final dfSubjWithinGroup = math.max(1.0, (subjectSet.length - kA).toDouble());
+          final msSubjWithinGroup = ssSubjWithinGroup / dfSubjWithinGroup;
+
+          final ssResidualWithin = math.max(0.0, ssWithin - ssSubjWithinGroup);
+          final dfResidualWithin = math.max(1.0, dfWithin - dfSubjWithinGroup);
+          final msResidualWithin = dfResidualWithin > 0 ? (ssResidualWithin / dfResidualWithin) : msWithin;
+
+          if (msSubjWithinGroup > 0 && msResidualWithin > 0) {
+            msErrorBetween = msSubjWithinGroup;
+            dfDenomBetween = dfSubjWithinGroup;
+            msErrorWithin = msResidualWithin;
+            dfDenomWithin = dfResidualWithin;
+            errorMS = msResidualWithin;
+            errorDF = dfResidualWithin;
+          }
+        }
+
+        final fA = msErrorBetween > 0 ? msA / msErrorBetween : 0.0;
+        final fB = msErrorWithin > 0 ? msB / msErrorWithin : 0.0;
+        final fAB = msErrorWithin > 0 ? msAB / msErrorWithin : 0.0;
+
+        final pA = StatMath.fDistributionPValue(fA, dfA, dfDenomBetween);
+        final pB = StatMath.fDistributionPValue(fB, dfB, dfDenomWithin);
+        final pAB = StatMath.fDistributionPValue(fAB, dfAB, dfDenomWithin);
+
+        final etaA = (ssA + msErrorBetween * dfDenomBetween) > 0 ? ssA / (ssA + msErrorBetween * dfDenomBetween) : 0.0;
+        final etaB = (ssB + msErrorWithin * dfDenomWithin) > 0 ? ssB / (ssB + msErrorWithin * dfDenomWithin) : 0.0;
+        final etaAB = (ssAB + msErrorWithin * dfDenomWithin) > 0 ? ssAB / (ssAB + msErrorWithin * dfDenomWithin) : 0.0;
 
         modelEffects.add({
           'term': groupCol,
           'f_stat': fA,
           'p_value': pA,
           'df_num': dfA.toInt(),
-          'df_denom': dfWithin.toInt(),
+          'df_denom': dfDenomBetween.toInt(),
           'eta_sq': etaA,
           'n_obs': totalN,
         });
@@ -836,7 +893,7 @@ class GroupStatsEngine {
           'f_stat': fB,
           'p_value': pB,
           'df_num': dfB.toInt(),
-          'df_denom': dfWithin.toInt(),
+          'df_denom': dfDenomWithin.toInt(),
           'eta_sq': etaB,
           'n_obs': totalN,
         });
@@ -846,7 +903,7 @@ class GroupStatsEngine {
             'f_stat': fAB,
             'p_value': pAB,
             'df_num': dfAB.toInt(),
-            'df_denom': dfWithin.toInt(),
+            'df_denom': dfDenomWithin.toInt(),
             'eta_sq': etaAB,
             'n_obs': totalN,
           });
@@ -1114,26 +1171,27 @@ class GroupStatsEngine {
         }
       }
 
-      // Determine descriptive model title based on factors
+      // Determine descriptive model title based on factors and chosen model approach
       final modeledFactorsCount = 1 + (subgrpIdx != null ? 1 : 0) + extraFactors.where((ef) => colMap.containsKey(ef) && ef != groupCol && ef != effectiveSubgroupCol).length;
       final String modelType;
-      if (subjectIdCol != null && subjectIdCol.isNotEmpty && subjectSet.isNotEmpty) {
+      if (useLmm) {
         if (modeledFactorsCount == 1) {
           modelType = 'One-Way Repeated-Measures LMM';
         } else if (modeledFactorsCount == 2) {
-          modelType = 'Two-Way Factorial LMM';
+          modelType = 'Two-Way Mixed LMM (Fixed Factors + Random Intercept)';
         } else {
           modelType = 'Multi-Factor LMM ($modeledFactorsCount Fixed Factors + Random Intercept)';
         }
       } else {
+        final glmTag = (preferredModel == 'glm') ? ' (GLM)' : '';
         if (modeledFactorsCount == 1) {
-          modelType = 'One-Way ANOVA';
+          modelType = 'One-Way ANOVA$glmTag';
         } else if (modeledFactorsCount == 2) {
-          modelType = 'Two-Way Factorial ANOVA';
+          modelType = 'Two-Way Factorial ANOVA$glmTag';
         } else if (modeledFactorsCount == 3) {
-          modelType = 'Three-Way Factorial ANOVA';
+          modelType = 'Three-Way Factorial ANOVA$glmTag';
         } else {
-          modelType = 'Multi-Factor ANOVA ($modeledFactorsCount Factors)';
+          modelType = 'Multi-Factor ANOVA$glmTag ($modeledFactorsCount Factors)';
         }
       }
 

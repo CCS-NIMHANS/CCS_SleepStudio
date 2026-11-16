@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <b>Current version: 1.51.0</b> ·
+  <b>Current version: 1.51.1</b> ·
   <a href="CHANGELOG.md">Detailed changelog</a> ·
   <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues">Report a problem</a>
 </p>
@@ -100,9 +100,10 @@ Built using **Flutter** for a high-framerate 60+ FPS UI and a native **Rust** co
 
 ---
 
-## 🌟 What's New in Version 1.50.x (Latest: 1.50.4)
+## 🌟 What's New in Version 1.51.x (Latest: 1.51.1)
 
-* **Macroarchitecture Channel Selection & Auto-Deduplication (v1.50.4):** Prevents inflated observation counts ($n$) for hypnogram sleep architecture metrics (`N2_duration_min`, `W_duration`, `TST`, `WASO`, `SOL`, `Sleep_efficiency`, etc.) in multi-channel/regional master sheets. Users can now choose `Auto-Deduplicate (1 observation per recording)` or select a dedicated macro channel (e.g., `Central`, `Frontal`) to guarantee exact recording/subject counts without multi-channel row duplication.
+* **Explicit Statistical Model Selection (GLM vs LMM) & Accurate Labeling (v1.51.1):** Rigorously honors the user's choice of statistical approach across all outputs. When General Linear Model (GLM / ANOVA Type II) is chosen, all factors are fitted as fixed effects and accurately labeled as `One-Way ANOVA (GLM)`, `Two-Way Factorial ANOVA (GLM)`, or `Multi-Factor ANOVA (GLM)` across plot banners, live formula badges, HTML publishing reports, and exported PNG figures. For single-observation-per-subject metrics (including whole-night macroarchitecture), misleading "Repeated-Measures LMM" labels are eliminated, while Linear Mixed Models (LMM) with random subject intercepts are faithfully applied and calculated when within-subject repeated measures exist.
+* **Macroarchitecture Channel Selection & Auto-Deduplication (v1.51.0):** Prevents inflated observation counts ($n$) for hypnogram sleep architecture metrics (`N2_duration_min`, `W_duration`, `TST`, `WASO`, `SOL`, `Sleep_efficiency`, etc.) in multi-channel/regional master sheets. Users can now choose `Auto-Deduplicate (1 observation per recording)` or select a dedicated macro channel (e.g., `Central`, `Frontal`) to guarantee exact recording/subject counts without multi-channel row duplication.
 * **Interactive Column Value Inclusion & Exclusion Filtering (v1.50.4):** Replaced manual text filters with 1-click interactive checkbox chips for ANY column from the master sheet (e.g., `source_file`, `Status`, `Diagnosis`, `Chan`). Includes `Select All`, `Deselect All`, and live substring search with `Exclude Matching` and `Include Only Matching` buttons.
 * **Multi-Factor ANOVA/LMM Beyond 4 Factors with Live Formula Preview (v1.50.4):** Seamlessly add 3rd, 4th, 5th, and higher-order factors to factorial ANOVA and mixed-effects models via a dedicated `+ Add Factor` selector, numbered factor chips, and a live LaTeX/monospace model formula badge.
 * **Automatic Publication Plot Generation (v1.50.4):** Offscreen rendering automatically saves publication-grade PNG figures (`<metric>_boxplot.png` and omnibus/contrast scalp topoplots) to `<output_dir>/plots/` on every analysis run, alongside interactive HTML reports.

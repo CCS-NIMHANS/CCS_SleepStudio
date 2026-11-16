@@ -207,4 +207,77 @@ file2.edf,S2,Stim,Occipital,45.0,18
 
     tempDir.deleteSync(recursive: true);
   });
+
+  test('GroupStatsEngine reliably applies GLM vs LMM choices without mislabeling', () async {
+    final tempDir = Directory.systemTemp.createTempSync('glm_lmm_test_');
+    final csvFile = File('${tempDir.path}/test_glm_lmm.csv');
+    // 4 subjects, 2 channels each
+    await csvFile.writeAsString('''source_file,napID,groupID,Chan,TRT,sp_Count
+s1.edf,N1,CNT,Central,76.24,20
+s1.edf,N1,CNT,Frontal,76.24,22
+s2.edf,N2,CNT,Central,76.24,18
+s2.edf,N2,CNT,Frontal,76.24,25
+s3.edf,N3,MCI,Central,73.42,12
+s3.edf,N3,MCI,Frontal,73.42,14
+s4.edf,N4,MCI,Central,73.42,10
+s4.edf,N4,MCI,Frontal,73.42,16
+''');
+
+    // 1. When user selects GLM for macro metric TRT (single obs per subject):
+    final resGlm = await GroupStatsEngine.runAnalysis(
+      csvPath: csvFile.path,
+      groupCol: 'groupID',
+      channelCol: 'Chan',
+      subjectIdCol: 'napID',
+      preferredModel: 'glm',
+      targetMetrics: ['TRT'],
+    );
+    final trtGlm = (resGlm['results'] as List<dynamic>).first;
+    expect(trtGlm['model_type'], 'One-Way ANOVA (GLM)');
+    expect(trtGlm['model_type'].contains('LMM'), isFalse);
+    expect(trtGlm['n_obs'], 4); // deduplicated macro
+
+    // 2. When user selects GLM for multi-channel metric sp_Count (repeated observations):
+    final resGlmSp = await GroupStatsEngine.runAnalysis(
+      csvPath: csvFile.path,
+      groupCol: 'groupID',
+      subgroupCol: 'Chan',
+      channelCol: 'Chan',
+      subjectIdCol: 'napID',
+      preferredModel: 'glm',
+      targetMetrics: ['sp_Count'],
+    );
+    final spGlm = (resGlmSp['results'] as List<dynamic>).first;
+    expect(spGlm['model_type'], 'Two-Way Factorial ANOVA (GLM)');
+    expect(spGlm['model_type'].contains('LMM'), isFalse);
+
+    // 3. When user selects LMM for multi-channel metric sp_Count (repeated observations):
+    final resLmmSp = await GroupStatsEngine.runAnalysis(
+      csvPath: csvFile.path,
+      groupCol: 'groupID',
+      subgroupCol: 'Chan',
+      channelCol: 'Chan',
+      subjectIdCol: 'napID',
+      preferredModel: 'lmm',
+      targetMetrics: ['sp_Count'],
+    );
+    final spLmm = (resLmmSp['results'] as List<dynamic>).first;
+    expect(spLmm['model_type'], 'Two-Way Mixed LMM (Fixed Factors + Random Intercept)');
+
+    // 4. When preferredModel is 'auto' on macro metric TRT:
+    // It should NOT claim repeated measures because each subject has only 1 observation
+    final resAutoTrt = await GroupStatsEngine.runAnalysis(
+      csvPath: csvFile.path,
+      groupCol: 'groupID',
+      channelCol: 'Chan',
+      subjectIdCol: 'napID',
+      preferredModel: 'auto',
+      targetMetrics: ['TRT'],
+    );
+    final trtAuto = (resAutoTrt['results'] as List<dynamic>).first;
+    expect(trtAuto['model_type'], 'One-Way ANOVA');
+    expect(trtAuto['model_type'].contains('Repeated-Measures LMM'), isFalse);
+
+    tempDir.deleteSync(recursive: true);
+  });
 }
