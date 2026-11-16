@@ -70,6 +70,9 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
   String? _selectedResultMetric;
   int _activeResultTabIndex = 0; // 0: Plot, 1: Model Effects, 2: Post-Hoc, 3: Descriptives
   int _activePlotView = 0; // 0: Box & Post-Hoc Plot, 1: Scalp Topoplot + eTFCE
+  GroupStatsPlotType _selectedPlotType = GroupStatsPlotType.boxplot;
+  GroupStatsClusterMode _selectedClusterMode = GroupStatsClusterMode.bySubgroup;
+  bool _useSem = true;
 
   @override
   void initState() {
@@ -343,14 +346,29 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
 
         try {
           if (descriptives.isNotEmpty) {
-            final boxplotBytes = await GroupStatsBoxplotWidget.renderBoxplotImage(
+            final boxplotBytes = await GroupStatsBoxplotWidget.renderPlotImage(
               descriptives: descriptives,
               posthocs: posthocs,
               metric: metric,
               title: '$metric · $modelType · N=$nSubj subjects (n=$nObs obs)',
+              plotType: GroupStatsPlotType.boxplot,
+              clusterMode: GroupStatsClusterMode.bySubgroup,
             );
             final boxplotFile = File('${plotsDir.path}/${safeMetric}_boxplot.png');
             await boxplotFile.writeAsBytes(boxplotBytes);
+            savedImageCount++;
+
+            final barchartBytes = await GroupStatsBoxplotWidget.renderPlotImage(
+              descriptives: descriptives,
+              posthocs: posthocs,
+              metric: metric,
+              title: '$metric · $modelType · N=$nSubj subjects (n=$nObs obs)',
+              plotType: GroupStatsPlotType.barChart,
+              clusterMode: GroupStatsClusterMode.bySubgroup,
+              useSem: true,
+            );
+            final barchartFile = File('${plotsDir.path}/${safeMetric}_barchart.png');
+            await barchartFile.writeAsBytes(barchartBytes);
             savedImageCount++;
           }
 
@@ -439,12 +457,16 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
       if (!plotsDir.existsSync()) {
         plotsDir.createSync(recursive: true);
       }
-      final outPath = '${plotsDir.path}/${safeMetric}_boxplot.png';
-      final bytes = await GroupStatsBoxplotWidget.renderBoxplotImage(
+      final fileSuffix = _selectedPlotType == GroupStatsPlotType.barChart ? 'barchart' : 'boxplot';
+      final outPath = '${plotsDir.path}/${safeMetric}_$fileSuffix.png';
+      final bytes = await GroupStatsBoxplotWidget.renderPlotImage(
         descriptives: descriptives,
         posthocs: posthocs,
         metric: metric,
         title: '$metric · $modelType · N=$nSubj subjects (n=$nObs obs)',
+        plotType: _selectedPlotType,
+        clusterMode: _selectedClusterMode,
+        useSem: _useSem,
       );
       await File(outPath).writeAsBytes(bytes);
       _showSnack('Saved plot image to: $outPath');
@@ -1961,7 +1983,7 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
                   padding: const EdgeInsets.only(right: 8),
                   child: SegmentedButton<int>(
                     segments: const [
-                      ButtonSegment(value: 0, icon: Icon(Icons.bar_chart, size: 14), label: Text('Boxplot & Contrasts')),
+                      ButtonSegment(value: 0, icon: Icon(Icons.bar_chart, size: 14), label: Text('Group Comparisons')),
                       ButtonSegment(value: 1, icon: Icon(Icons.blur_circular, size: 14), label: Text('Scalp Topoplot + eTFCE')),
                     ],
                     selected: {_activePlotView},
@@ -1975,12 +1997,67 @@ class _GroupStatisticsWorkbenchState extends State<GroupStatisticsWorkbench> {
               ),
             ],
           ),
+          if (_activePlotView == 0 || !hasTopo) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SegmentedButton<GroupStatsPlotType>(
+                  segments: const [
+                    ButtonSegment(
+                      value: GroupStatsPlotType.boxplot,
+                      icon: Icon(Icons.candlestick_chart, size: 14),
+                      label: Text('Boxplot & Jitter'),
+                    ),
+                    ButtonSegment(
+                      value: GroupStatsPlotType.barChart,
+                      icon: Icon(Icons.bar_chart, size: 14),
+                      label: Text('Grouped Bar (Mean ± Error)'),
+                    ),
+                  ],
+                  selected: {_selectedPlotType},
+                  onSelectionChanged: (s) => setState(() => _selectedPlotType = s.first),
+                ),
+                if (descriptives.any((d) => d['subgroup'] != null && (d['subgroup'] as String).isNotEmpty))
+                  SegmentedButton<GroupStatsClusterMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: GroupStatsClusterMode.bySubgroup,
+                        icon: Icon(Icons.view_column, size: 14),
+                        label: Text('Cluster by Region (Frontal: CNT|MCI)'),
+                      ),
+                      ButtonSegment(
+                        value: GroupStatsClusterMode.byGroup,
+                        icon: Icon(Icons.table_rows_outlined, size: 14),
+                        label: Text('Cluster by Cohort (CNT: All Regions)'),
+                      ),
+                    ],
+                    selected: {_selectedClusterMode},
+                    onSelectionChanged: (s) => setState(() => _selectedClusterMode = s.first),
+                  ),
+                if (_selectedPlotType == GroupStatsPlotType.barChart)
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('± SEM')),
+                      ButtonSegment(value: false, label: Text('± SD')),
+                    ],
+                    selected: {_useSem},
+                    onSelectionChanged: (s) => setState(() => _useSem = s.first),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           if (_activePlotView == 0 || !hasTopo)
             GroupStatsBoxplotWidget(
               metric: metric,
               descriptives: descriptives,
               posthocs: posthocs,
+              plotType: _selectedPlotType,
+              clusterMode: _selectedClusterMode,
+              useSem: _useSem,
             )
           else ...[
             GroupStatsTopoplotWidget(

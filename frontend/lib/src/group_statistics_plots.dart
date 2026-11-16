@@ -4,7 +4,22 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'group_statistics_engine.dart';
 
-/// Interactive publication-grade Box-and-Whisker & Strip Plot widget rendered directly in Flutter.
+/// Supported plot representation types.
+enum GroupStatsPlotType {
+  boxplot,
+  barChart,
+}
+
+/// Supported grouping/clustering arrangements across the horizontal axis.
+enum GroupStatsClusterMode {
+  /// Cluster by Region/Spatial Factor (e.g. Frontal: [CNT] [MCI], Central: [CNT] [MCI]).
+  bySubgroup,
+
+  /// Cluster by Cohort/Primary Group (e.g. CNT: [Frontal, Central...], MCI: [Frontal, Central...]).
+  byGroup,
+}
+
+/// Interactive publication-grade Box-and-Whisker & Grouped Bar Chart widget rendered directly in Flutter.
 class GroupStatsBoxplotWidget extends StatelessWidget {
   const GroupStatsBoxplotWidget({
     super.key,
@@ -12,12 +27,18 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
     this.unit = '',
     required this.descriptives,
     required this.posthocs,
+    this.plotType = GroupStatsPlotType.boxplot,
+    this.clusterMode = GroupStatsClusterMode.bySubgroup,
+    this.useSem = true,
   });
 
   final String metric;
   final String unit;
   final List<Map<String, dynamic>> descriptives;
   final List<Map<String, dynamic>> posthocs;
+  final GroupStatsPlotType plotType;
+  final GroupStatsClusterMode clusterMode;
+  final bool useSem;
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +46,17 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
       return const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No observations to plot.')));
     }
 
+    final hasSubgroups = descriptives.any((d) => d['subgroup'] != null && (d['subgroup'] as String).isNotEmpty);
+    final orderedGroups = <String>[];
+    for (final d in descriptives) {
+      final g = d['group'] as String;
+      if (!orderedGroups.contains(g)) orderedGroups.add(g);
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final plotWidth = constraints.maxWidth;
-        final plotHeight = 440.0;
+        final plotHeight = 460.0;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -50,25 +78,69 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
                   posthocs: posthocs,
                   metric: metric,
                   unit: unit,
+                  plotType: plotType,
+                  clusterMode: clusterMode,
+                  useSem: useSem,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 16,
               runSpacing: 6,
               alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem(const Color(0xFF1F4E79), 'Box (IQR: Q1–Q3)'),
-                _buildLegendItem(Colors.black87, 'Median Line (—)'),
-                _buildLegendItem(const Color(0xFFD32F2F), 'Mean Marker (▲)'),
-                _buildLegendItem(Colors.grey.shade600, 'Observations (Jittered •)'),
-                _buildLegendItem(const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+                if (hasSubgroups && clusterMode == GroupStatsClusterMode.bySubgroup) ...[
+                  for (var k = 0; k < orderedGroups.length; k++)
+                    _buildGroupLegendItem(
+                      orderedGroups[k],
+                      _BoxplotPainter._palette[k % _BoxplotPainter._palette.length],
+                      isHatched: (k % 2 == 1 && plotType == GroupStatsPlotType.barChart),
+                    ),
+                ],
+                if (plotType == GroupStatsPlotType.barChart) ...[
+                  _buildLegendItem(Colors.black87, useSem ? 'Error Bar (±SEM)' : 'Error Bar (±SD)'),
+                  _buildLegendItem(Colors.black54, 'Observations (Jittered •)'),
+                  _buildLegendItem(const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+                ] else ...[
+                  _buildLegendItem(const Color(0xFF1F4E79), 'Box (IQR: Q1–Q3)'),
+                  _buildLegendItem(Colors.black87, 'Median Line (—)'),
+                  _buildLegendItem(const Color(0xFFD32F2F), 'Mean Marker (▲)'),
+                  _buildLegendItem(Colors.grey.shade600, 'Observations (Jittered •)'),
+                  _buildLegendItem(const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+                ],
               ],
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildGroupLegendItem(String label, Color color, {bool isHatched = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color.withOpacity(isHatched ? 0.25 : 0.40),
+            border: Border.all(color: color, width: 1.6),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: isHatched
+              ? CustomPaint(
+                  painter: _HatchLegendPainter(color: color),
+                )
+              : null,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          isHatched ? '$label (Hatched)' : label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
+      ],
     );
   }
 
@@ -87,13 +159,16 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
     );
   }
 
-  /// Renders publication-grade boxplot to PNG image bytes offscreen.
-  static Future<Uint8List> renderBoxplotImage({
+  /// Renders publication-grade plot (Boxplot or Grouped Bar Chart) to PNG image bytes offscreen.
+  static Future<Uint8List> renderPlotImage({
     required List<Map<String, dynamic>> descriptives,
     required List<Map<String, dynamic>> posthocs,
     required String metric,
     String unit = '',
     String? title,
+    GroupStatsPlotType plotType = GroupStatsPlotType.boxplot,
+    GroupStatsClusterMode clusterMode = GroupStatsClusterMode.bySubgroup,
+    bool useSem = true,
     double width = 1100,
     double height = 620,
   }) async {
@@ -108,6 +183,9 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
       unit: unit,
       title: title,
       showLegend: true,
+      plotType: plotType,
+      clusterMode: clusterMode,
+      useSem: useSem,
     );
     painter.paint(canvas, Size(width, height));
 
@@ -116,6 +194,87 @@ class GroupStatsBoxplotWidget extends StatelessWidget {
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
+
+  /// Backwards-compatible alias for renderPlotImage.
+  static Future<Uint8List> renderBoxplotImage({
+    required List<Map<String, dynamic>> descriptives,
+    required List<Map<String, dynamic>> posthocs,
+    required String metric,
+    String unit = '',
+    String? title,
+    GroupStatsPlotType plotType = GroupStatsPlotType.boxplot,
+    GroupStatsClusterMode clusterMode = GroupStatsClusterMode.bySubgroup,
+    bool useSem = true,
+    double width = 1100,
+    double height = 620,
+  }) {
+    return renderPlotImage(
+      descriptives: descriptives,
+      posthocs: posthocs,
+      metric: metric,
+      unit: unit,
+      title: title,
+      plotType: plotType,
+      clusterMode: clusterMode,
+      useSem: useSem,
+      width: width,
+      height: height,
+    );
+  }
+}
+
+class _HatchLegendPainter extends CustomPainter {
+  _HatchLegendPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color.withOpacity(0.8)
+      ..strokeWidth = 1.2;
+    canvas.drawLine(Offset(0, size.height), Offset(size.width, 0), p);
+    canvas.drawLine(Offset(size.width * 0.4, size.height), Offset(size.width, size.height * 0.4), p);
+    canvas.drawLine(Offset(0, size.height * 0.6), Offset(size.width * 0.6, 0), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _PlotItem {
+  _PlotItem({
+    required this.descriptive,
+    required this.lookupKey,
+    required this.color,
+    required this.groupIndex,
+    required this.clusterIndex,
+    required this.itemSubLabel,
+    required this.cx,
+    required this.width,
+  });
+
+  final Map<String, dynamic> descriptive;
+  final String lookupKey;
+  final Color color;
+  final int groupIndex;
+  final int clusterIndex;
+  final String itemSubLabel;
+  final double cx;
+  final double width;
+}
+
+class _ClusterInfo {
+  _ClusterInfo({
+    required this.label,
+    required this.startX,
+    required this.endX,
+    required this.centerX,
+  });
+
+  final String label;
+  final double startX;
+  final double endX;
+  final double centerX;
 }
 
 class _BoxplotPainter extends CustomPainter {
@@ -126,6 +285,9 @@ class _BoxplotPainter extends CustomPainter {
     required this.unit,
     this.title,
     this.showLegend = false,
+    this.plotType = GroupStatsPlotType.boxplot,
+    this.clusterMode = GroupStatsClusterMode.bySubgroup,
+    this.useSem = true,
   });
 
   final List<Map<String, dynamic>> descriptives;
@@ -134,32 +296,192 @@ class _BoxplotPainter extends CustomPainter {
   final String unit;
   final String? title;
   final bool showLegend;
+  final GroupStatsPlotType plotType;
+  final GroupStatsClusterMode clusterMode;
+  final bool useSem;
 
   static const List<Color> _palette = [
-    Color(0xFF1F4E79),
-    Color(0xFF2E7D32),
-    Color(0xFFD32F2F),
-    Color(0xFFE65100),
-    Color(0xFF6A1B9A),
-    Color(0xFF00838F),
-    Color(0xFF4E342E),
-    Color(0xFF37474F),
+    Color(0xFF1F4E79), // Deep Navy Blue (Group 1 / CNT)
+    Color(0xFFE65100), // Vibrant Orange (Group 2 / MCI)
+    Color(0xFF2E7D32), // Forest Green
+    Color(0xFF6A1B9A), // Royal Purple
+    Color(0xFFD32F2F), // Crimson Red
+    Color(0xFF00838F), // Teal
+    Color(0xFF4E342E), // Brown
+    Color(0xFF37474F), // Slate Grey
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    final nCells = descriptives.length;
-    if (nCells == 0) return;
+    if (descriptives.isEmpty) return;
+
+    // Discover groups and subgroups
+    final orderedGroups = <String>[];
+    final orderedSubgroups = <String>[];
+    for (final d in descriptives) {
+      final g = d['group'] as String;
+      if (!orderedGroups.contains(g)) orderedGroups.add(g);
+      final s = d['subgroup'] as String?;
+      if (s != null && s.isNotEmpty && !orderedSubgroups.contains(s)) {
+        orderedSubgroups.add(s);
+      }
+    }
+    final hasSubgroups = orderedSubgroups.isNotEmpty;
+
+    // Geometry margins
+    final hasTitle = title != null && title!.isNotEmpty;
+    const marginLeft = 65.0;
+    final marginRight = size.width - 20.0;
+    final marginTop = hasTitle ? 48.0 : 20.0;
+    final marginBottom = size.height - (showLegend ? 76.0 : (hasSubgroups ? 64.0 : 48.0));
+
+    final plotWidth = marginRight - marginLeft;
+    final plotHeight = marginBottom - marginTop;
+
+    // Build positioned items & cluster headers
+    final plotItems = <_PlotItem>[];
+    final clusterInfoList = <_ClusterInfo>[];
+
+    if (hasSubgroups && clusterMode == GroupStatsClusterMode.bySubgroup) {
+      // CLUSTER BY REGION/SUBGROUP (Snapshot 1: Frontal [CNT][MCI], Central [CNT][MCI]...)
+      final cCount = orderedSubgroups.length;
+      final kCount = orderedGroups.length;
+      final clusterGap = math.min(32.0, math.max(14.0, plotWidth * 0.04));
+      final totalClusterW = plotWidth - (cCount - 1) * clusterGap;
+      final clusterW = totalClusterW / cCount;
+
+      final itemGap = (plotType == GroupStatsPlotType.barChart) ? 4.0 : 6.0;
+      final maxItemW = (plotType == GroupStatsPlotType.barChart) ? 48.0 : 42.0;
+      final itemW = math.min(maxItemW, math.max(12.0, (clusterW - (kCount - 1) * itemGap) / kCount));
+      final innerW = kCount * itemW + (kCount - 1) * itemGap;
+
+      for (var c = 0; c < cCount; c++) {
+        final subgrp = orderedSubgroups[c];
+        final clusterStartX = marginLeft + c * (clusterW + clusterGap) + (clusterW - innerW) / 2;
+        final clusterCenterX = marginLeft + c * (clusterW + clusterGap) + clusterW / 2;
+        clusterInfoList.add(_ClusterInfo(
+          label: subgrp,
+          startX: clusterStartX,
+          endX: clusterStartX + innerW,
+          centerX: clusterCenterX,
+        ));
+
+        for (var k = 0; k < kCount; k++) {
+          final grp = orderedGroups[k];
+          final itemCx = clusterStartX + k * (itemW + itemGap) + itemW / 2;
+          final key = '$grp|$subgrp';
+          Map<String, dynamic>? matchDesc;
+          for (final it in descriptives) {
+            if (it['group'] == grp && it['subgroup'] == subgrp) {
+              matchDesc = it;
+              break;
+            }
+          }
+          if (matchDesc != null) {
+            plotItems.add(_PlotItem(
+              descriptive: matchDesc,
+              lookupKey: key,
+              color: _palette[k % _palette.length],
+              groupIndex: k,
+              clusterIndex: c,
+              itemSubLabel: '$grp\n(n=${matchDesc['n']})',
+              cx: itemCx,
+              width: itemW,
+            ));
+          }
+        }
+      }
+    } else if (hasSubgroups && clusterMode == GroupStatsClusterMode.byGroup) {
+      // CLUSTER BY COHORT/GROUP (Snapshot 2: CNT [Frontal, Central...], MCI [Frontal, Central...])
+      final cCount = orderedGroups.length;
+      final kCount = orderedSubgroups.length;
+      final clusterGap = math.min(36.0, math.max(16.0, plotWidth * 0.05));
+      final totalClusterW = plotWidth - (cCount - 1) * clusterGap;
+      final clusterW = totalClusterW / cCount;
+
+      final itemGap = (plotType == GroupStatsPlotType.barChart) ? 4.0 : 6.0;
+      final maxItemW = (plotType == GroupStatsPlotType.barChart) ? 44.0 : 38.0;
+      final itemW = math.min(maxItemW, math.max(10.0, (clusterW - (kCount - 1) * itemGap) / kCount));
+      final innerW = kCount * itemW + (kCount - 1) * itemGap;
+
+      for (var c = 0; c < cCount; c++) {
+        final grp = orderedGroups[c];
+        final clusterStartX = marginLeft + c * (clusterW + clusterGap) + (clusterW - innerW) / 2;
+        final clusterCenterX = marginLeft + c * (clusterW + clusterGap) + clusterW / 2;
+        clusterInfoList.add(_ClusterInfo(
+          label: grp,
+          startX: clusterStartX,
+          endX: clusterStartX + innerW,
+          centerX: clusterCenterX,
+        ));
+
+        for (var k = 0; k < kCount; k++) {
+          final subgrp = orderedSubgroups[k];
+          final itemCx = clusterStartX + k * (itemW + itemGap) + itemW / 2;
+          final key = '$grp|$subgrp';
+          Map<String, dynamic>? matchDesc;
+          for (final it in descriptives) {
+            if (it['group'] == grp && it['subgroup'] == subgrp) {
+              matchDesc = it;
+              break;
+            }
+          }
+          if (matchDesc != null) {
+            plotItems.add(_PlotItem(
+              descriptive: matchDesc,
+              lookupKey: key,
+              color: _palette[k % _palette.length],
+              groupIndex: k,
+              clusterIndex: c,
+              itemSubLabel: '$subgrp\n(n=${matchDesc['n']})',
+              cx: itemCx,
+              width: itemW,
+            ));
+          }
+        }
+      }
+    } else {
+      // SINGLE-LEVEL FACTOR (No Subgroups)
+      final nCells = descriptives.length;
+      final cellW = plotWidth / nCells;
+      final itemW = math.min(plotType == GroupStatsPlotType.barChart ? 60.0 : 52.0, cellW * 0.60);
+
+      for (var i = 0; i < nCells; i++) {
+        final d = descriptives[i];
+        final itemCx = marginLeft + (i + 0.5) * cellW;
+        final grp = d['group'] as String;
+        plotItems.add(_PlotItem(
+          descriptive: d,
+          lookupKey: grp,
+          color: _palette[i % _palette.length],
+          groupIndex: i,
+          clusterIndex: 0,
+          itemSubLabel: '$grp\n(n=${d['n']})',
+          cx: itemCx,
+          width: itemW,
+        ));
+      }
+    }
+
+    if (plotItems.isEmpty) return;
 
     // Determine value range
     var globalMin = double.infinity;
     var globalMax = -double.infinity;
 
-    for (final d in descriptives) {
+    for (final it in plotItems) {
+      final d = it.descriptive;
       final minVal = (d['min'] as num).toDouble();
       final maxVal = (d['max'] as num).toDouble();
+      final mean = (d['mean'] as num).toDouble();
+      final std = ((d['std'] ?? d['sd'] ?? 0.0) as num).toDouble();
+      final sem = ((d['sem'] ?? (std / math.sqrt(math.max(1, (d['n'] as num? ?? 1).toDouble())))) as num).toDouble();
+      final err = useSem ? sem : std;
+
       if (minVal < globalMin) globalMin = minVal;
       if (maxVal > globalMax) globalMax = maxVal;
+      if (mean + err > globalMax) globalMax = mean + err;
+      if (mean - err < globalMin) globalMin = mean - err;
     }
 
     if (globalMin == globalMax) {
@@ -167,25 +489,31 @@ class _BoxplotPainter extends CustomPainter {
       globalMax += 1.0;
     }
 
-    // Add padding (15% on top for significance brackets)
-    final valRange = globalMax - globalMin;
-    final yMin = globalMin - valRange * 0.05;
-    final yMax = globalMax + valRange * 0.22;
-
-    final hasTitle = title != null && title!.isNotEmpty;
-    const marginLeft = 65.0;
-    final marginRight = size.width - 20.0;
-    final marginTop = hasTitle ? 48.0 : 20.0;
-    final marginBottom = showLegend ? size.height - 65.0 : size.height - 65.0;
-
-    final plotWidth = marginRight - marginLeft;
-    final plotHeight = marginBottom - marginTop;
+    double yMin;
+    double yMax;
+    if (plotType == GroupStatsPlotType.barChart) {
+      // Bar charts baseline from zero if strictly non-negative
+      if (globalMin >= 0) {
+        yMin = 0.0;
+        final topPad = (globalMax > 0) ? globalMax * 0.24 : 1.0;
+        yMax = globalMax + topPad;
+      } else {
+        final valRange = globalMax - globalMin;
+        yMin = globalMin - valRange * 0.06;
+        yMax = globalMax + valRange * 0.24;
+      }
+    } else {
+      final valRange = globalMax - globalMin;
+      yMin = globalMin - valRange * 0.05;
+      yMax = globalMax + valRange * 0.22;
+    }
 
     double mapY(double val) {
       final frac = (val - yMin) / (yMax - yMin);
       return marginBottom - frac * plotHeight;
     }
 
+    // Title
     if (hasTitle) {
       final titleTp = TextPainter(
         text: TextSpan(
@@ -209,7 +537,6 @@ class _BoxplotPainter extends CustomPainter {
       ..color = Colors.grey.shade200
       ..strokeWidth = 0.8;
 
-    // Y ticks (5 intervals)
     const numTicks = 5;
     for (var i = 0; i <= numTicks; i++) {
       final frac = i / numTicks;
@@ -247,118 +574,224 @@ class _BoxplotPainter extends CustomPainter {
     canvas.drawLine(Offset(marginLeft, marginTop), Offset(marginLeft, marginBottom), axisPaint);
     canvas.drawLine(Offset(marginLeft, marginBottom), Offset(marginRight, marginBottom), axisPaint);
 
-    // ─── 2. DRAW BOXES & DATA POINTS ───────────────────────────
-    final cellWidth = plotWidth / nCells;
-    final boxWidth = math.min(55.0, cellWidth * 0.55);
+    // ─── 2. DRAW PLOT ITEMS (BARS OR BOXES) ─────────────────────
+    final yZero = mapY(0.0).clamp(marginTop, marginBottom);
 
-    final boxCenters = <double>[];
+    for (final item in plotItems) {
+      final d = item.descriptive;
+      final cx = item.cx;
+      final color = item.color;
+      final itemW = item.width;
 
-    for (var i = 0; i < nCells; i++) {
-      final d = descriptives[i];
-      final cx = marginLeft + (i + 0.5) * cellWidth;
-      boxCenters.add(cx);
-
-      final color = _palette[i % _palette.length];
-      final q1 = (d['q1'] as num).toDouble();
-      final q3 = (d['q3'] as num).toDouble();
-      final median = (d['median'] as num).toDouble();
       final mean = (d['mean'] as num).toDouble();
-      final minVal = (d['min'] as num).toDouble();
-      final maxVal = (d['max'] as num).toDouble();
-      final n = d['n'] as int;
-
-      final yQ1 = mapY(q1);
-      final yQ3 = mapY(q3);
-      final yMedian = mapY(median);
-      final yMean = mapY(mean);
-      final yMinVal = mapY(minVal);
-      final yMaxVal = mapY(maxVal);
-
-      // Box Rect
-      final boxRect = Rect.fromLTRB(cx - boxWidth / 2, yQ3, cx + boxWidth / 2, yQ1);
-
-      // Box Fill
-      final fillPaint = Paint()
-        ..color = color.withOpacity(0.20)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(RRect.fromRectAndRadius(boxRect, const Radius.circular(3)), fillPaint);
-
-      // Box Outline
-      final outlinePaint = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8;
-      canvas.drawRRect(RRect.fromRectAndRadius(boxRect, const Radius.circular(3)), outlinePaint);
-
-      // Median Line
-      final medianPaint = Paint()
-        ..color = Colors.black87
-        ..strokeWidth = 2.4;
-      canvas.drawLine(Offset(cx - boxWidth / 2, yMedian), Offset(cx + boxWidth / 2, yMedian), medianPaint);
-
-      // Whiskers
-      final whiskerPaint = Paint()
-        ..color = color
-        ..strokeWidth = 1.2;
-      canvas.drawLine(Offset(cx, yQ3), Offset(cx, yMaxVal), whiskerPaint);
-      canvas.drawLine(Offset(cx, yQ1), Offset(cx, yMinVal), whiskerPaint);
-
-      // Whisker caps
-      final capWidth = boxWidth * 0.4;
-      canvas.drawLine(Offset(cx - capWidth / 2, yMaxVal), Offset(cx + capWidth / 2, yMaxVal), whiskerPaint);
-      canvas.drawLine(Offset(cx - capWidth / 2, yMinVal), Offset(cx + capWidth / 2, yMinVal), whiskerPaint);
-
-      // Jittered scatter points
+      final std = ((d['std'] ?? d['sd'] ?? 0.0) as num).toDouble();
+      final sem = ((d['sem'] ?? (std / math.sqrt(math.max(1, (d['n'] as num? ?? 1).toDouble())))) as num).toDouble();
+      final err = useSem ? sem : std;
       final rawVals = (d['raw_values'] as List<dynamic>? ?? []).map((e) => (e as num).toDouble()).toList();
-      final pointPaint = Paint()
-        ..color = color.withOpacity(0.55)
-        ..style = PaintingStyle.fill;
 
-      final rnd = math.Random(i * 42);
-      for (final rv in rawVals) {
-        final jitter = (rnd.nextDouble() - 0.5) * (boxWidth * 0.65);
-        final py = mapY(rv);
-        canvas.drawCircle(Offset(cx + jitter, py), 2.5, pointPaint);
+      if (plotType == GroupStatsPlotType.barChart) {
+        // ─── GROUPED BAR CHART (Mean ± Error + Jitter) ─────────
+        final yMean = mapY(mean);
+        final barTop = math.min(yZero, yMean);
+        final barBottom = math.max(yZero, yMean);
+        final barRect = Rect.fromLTRB(cx - itemW / 2, barTop, cx + itemW / 2, barBottom);
+
+        // Fill: group 0 solid translucent; group 1 (e.g. MCI) diagonal hatched like Snapshot 1!
+        final isHatched = (item.groupIndex % 2 == 1 && clusterInfoList.isNotEmpty);
+
+        final fillPaint = Paint()
+          ..color = color.withOpacity(isHatched ? 0.20 : 0.40)
+          ..style = PaintingStyle.fill;
+        canvas.drawRRect(RRect.fromRectAndRadius(barRect, const Radius.circular(2)), fillPaint);
+
+        if (isHatched) {
+          canvas.save();
+          canvas.clipRRect(RRect.fromRectAndRadius(barRect, const Radius.circular(2)));
+          final hatchPaint = Paint()
+            ..color = color.withOpacity(0.60)
+            ..strokeWidth = 1.4;
+          final bW = barRect.width;
+          final bH = barRect.height;
+          for (double offset = -bH; offset < bW + bH; offset += 6.5) {
+            canvas.drawLine(
+              Offset(barRect.left + offset, barRect.bottom),
+              Offset(barRect.left + offset + bH, barRect.top),
+              hatchPaint,
+            );
+          }
+          canvas.restore();
+        }
+
+        // Bar Outline
+        final outlinePaint = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8;
+        canvas.drawRRect(RRect.fromRectAndRadius(barRect, const Radius.circular(2)), outlinePaint);
+
+        // Error Bar (Whisker + Caps)
+        final yErrTop = mapY(mean + err);
+        final yErrBottom = mapY(math.max(0.0, mean - err));
+        final errPaint = Paint()
+          ..color = Colors.black87
+          ..strokeWidth = 1.6;
+
+        canvas.drawLine(Offset(cx, yMean), Offset(cx, yErrTop), errPaint);
+        if (mean - err >= 0) {
+          canvas.drawLine(Offset(cx, yMean), Offset(cx, yErrBottom), errPaint);
+        }
+
+        final capW = itemW * 0.42;
+        canvas.drawLine(Offset(cx - capW / 2, yErrTop), Offset(cx + capW / 2, yErrTop), errPaint);
+        if (mean - err >= 0) {
+          canvas.drawLine(Offset(cx - capW / 2, yErrBottom), Offset(cx + capW / 2, yErrBottom), errPaint);
+        }
+
+        // Overlay Individual Observation Points (Jittered)
+        final pointPaint = Paint()
+          ..color = Colors.black.withOpacity(0.40)
+          ..style = PaintingStyle.fill;
+        final rnd = math.Random(item.groupIndex * 71 + item.clusterIndex * 13);
+        for (final rv in rawVals) {
+          final jitter = (rnd.nextDouble() - 0.5) * (itemW * 0.55);
+          final py = mapY(rv);
+          canvas.drawCircle(Offset(cx + jitter, py), 2.2, pointPaint);
+        }
+      } else {
+        // ─── BOX-AND-WHISKER PLOT ─────────────────────────────
+        final q1 = (d['q1'] as num).toDouble();
+        final q3 = (d['q3'] as num).toDouble();
+        final median = (d['median'] as num).toDouble();
+        final minVal = (d['min'] as num).toDouble();
+        final maxVal = (d['max'] as num).toDouble();
+
+        final yQ1 = mapY(q1);
+        final yQ3 = mapY(q3);
+        final yMedian = mapY(median);
+        final yMean = mapY(mean);
+        final yMinVal = mapY(minVal);
+        final yMaxVal = mapY(maxVal);
+
+        final boxRect = Rect.fromLTRB(cx - itemW / 2, yQ3, cx + itemW / 2, yQ1);
+
+        // Box Fill
+        final fillPaint = Paint()
+          ..color = color.withOpacity(0.20)
+          ..style = PaintingStyle.fill;
+        canvas.drawRRect(RRect.fromRectAndRadius(boxRect, const Radius.circular(3)), fillPaint);
+
+        // Box Outline
+        final outlinePaint = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8;
+        canvas.drawRRect(RRect.fromRectAndRadius(boxRect, const Radius.circular(3)), outlinePaint);
+
+        // Median Line
+        final medianPaint = Paint()
+          ..color = Colors.black87
+          ..strokeWidth = 2.4;
+        canvas.drawLine(Offset(cx - itemW / 2, yMedian), Offset(cx + itemW / 2, yMedian), medianPaint);
+
+        // Whiskers
+        final whiskerPaint = Paint()
+          ..color = color
+          ..strokeWidth = 1.2;
+        canvas.drawLine(Offset(cx, yQ3), Offset(cx, yMaxVal), whiskerPaint);
+        canvas.drawLine(Offset(cx, yQ1), Offset(cx, yMinVal), whiskerPaint);
+
+        // Whisker caps
+        final capWidth = itemW * 0.4;
+        canvas.drawLine(Offset(cx - capWidth / 2, yMaxVal), Offset(cx + capWidth / 2, yMaxVal), whiskerPaint);
+        canvas.drawLine(Offset(cx - capWidth / 2, yMinVal), Offset(cx + capWidth / 2, yMinVal), whiskerPaint);
+
+        // Jittered scatter points
+        final pointPaint = Paint()
+          ..color = color.withOpacity(0.55)
+          ..style = PaintingStyle.fill;
+        final rnd = math.Random(item.groupIndex * 71 + item.clusterIndex * 13);
+        for (final rv in rawVals) {
+          final jitter = (rnd.nextDouble() - 0.5) * (itemW * 0.65);
+          final py = mapY(rv);
+          canvas.drawCircle(Offset(cx + jitter, py), 2.5, pointPaint);
+        }
+
+        // Mean indicator (triangle)
+        final meanPath = Path()
+          ..moveTo(cx, yMean - 5)
+          ..lineTo(cx - 5, yMean + 4)
+          ..lineTo(cx + 5, yMean + 4)
+          ..close();
+        canvas.drawPath(meanPath, Paint()..color = const Color(0xFFD32F2F));
       }
-
-      // Mean indicator (triangle)
-      final meanPath = Path()
-        ..moveTo(cx, yMean - 5)
-        ..lineTo(cx - 5, yMean + 4)
-        ..lineTo(cx + 5, yMean + 4)
-        ..close();
-      canvas.drawPath(meanPath, Paint()..color = const Color(0xFFD32F2F));
-
-      // X-axis label & sample size
-      final grpLabel = d['subgroup'] != null ? '${d['group']}\n${d['subgroup']}' : '${d['group']}';
-      final xLabelText = '$grpLabel\n(n=$n)';
-      final xTp = TextPainter(
-        text: TextSpan(
-          text: xLabelText,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.15),
-        ),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: cellWidth - 4);
-      xTp.paint(canvas, Offset(cx - xTp.width / 2, marginBottom + 8));
     }
 
-    // ─── 3. SIGNIFICANCE BRACKETS ──────────────────────────────
-    final sigPosthocs = posthocs.where((p) => p['significant'] == true).take(3).toList();
+    // ─── 3. DRAW X-AXIS LABELS & CLUSTER BRACKETS ────────────────
+    if (clusterInfoList.isNotEmpty) {
+      // Row 1: Sub-item labels (e.g. CNT (n=17), MCI (n=14))
+      for (final item in plotItems) {
+        final xTp = TextPainter(
+          text: TextSpan(
+            text: item.itemSubLabel,
+            style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w600, color: Colors.black87, height: 1.15),
+          ),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: item.width + 12);
+        xTp.paint(canvas, Offset(item.cx - xTp.width / 2, marginBottom + 6));
+      }
+
+      // Row 2: Cluster Header Label & Grouping Line (e.g. Frontal, Central, Parietal...)
+      for (final cluster in clusterInfoList) {
+        final clusterBracketPaint = Paint()
+          ..color = Colors.grey.shade400
+          ..strokeWidth = 1.0;
+        canvas.drawLine(
+          Offset(cluster.startX, marginBottom + 24),
+          Offset(cluster.endX, marginBottom + 24),
+          clusterBracketPaint,
+        );
+
+        final clTp = TextPainter(
+          text: TextSpan(
+            text: cluster.label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1F4E79)),
+          ),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        clTp.paint(canvas, Offset(cluster.centerX - clTp.width / 2, marginBottom + 28));
+      }
+    } else {
+      for (final item in plotItems) {
+        final xTp = TextPainter(
+          text: TextSpan(
+            text: item.itemSubLabel,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.15),
+          ),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: item.width + 20);
+        xTp.paint(canvas, Offset(item.cx - xTp.width / 2, marginBottom + 8));
+      }
+    }
+
+    // ─── 4. SIGNIFICANCE BRACKETS ──────────────────────────────
+    final sigPosthocs = posthocs.where((p) => p['significant'] == true).take(4).toList();
     var bracketLevel = 0;
 
     for (final ph in sigPosthocs) {
       final grpA = ph['group_a'] as String;
       final grpB = ph['group_b'] as String;
 
-      int idxA = descriptives.indexWhere((d) {
-        final key = d['subgroup'] != null ? '${d['group']}|${d['subgroup']}' : d['group'];
-        return key == grpA;
-      });
-      int idxB = descriptives.indexWhere((d) {
-        final key = d['subgroup'] != null ? '${d['group']}|${d['subgroup']}' : d['group'];
-        return key == grpB;
-      });
+      int idxA = plotItems.indexWhere((it) => it.lookupKey == grpA);
+      int idxB = plotItems.indexWhere((it) => it.lookupKey == grpB);
+      if (idxA < 0) {
+        idxA = plotItems.indexWhere((it) => '${it.descriptive['subgroup']}|${it.descriptive['group']}' == grpA);
+      }
+      if (idxB < 0) {
+        idxB = plotItems.indexWhere((it) => '${it.descriptive['subgroup']}|${it.descriptive['group']}' == grpB);
+      }
 
       if (idxA < 0 || idxB < 0 || idxA == idxB) continue;
       if (idxA > idxB) {
@@ -367,9 +800,9 @@ class _BoxplotPainter extends CustomPainter {
         idxB = t;
       }
 
-      final x1 = boxCenters[idxA];
-      final x2 = boxCenters[idxB];
-      final bracketY = marginTop + 8 + bracketLevel * 22;
+      final x1 = plotItems[idxA].cx;
+      final x2 = plotItems[idxB].cx;
+      final bracketY = marginTop + 6 + bracketLevel * 20;
 
       final bracketPaint = Paint()
         ..color = const Color(0xFF16A34A)
@@ -397,16 +830,60 @@ class _BoxplotPainter extends CustomPainter {
       bracketLevel++;
     }
 
+    // ─── 5. OFFSCREEN CANVAS LEGEND ─────────────────────────────
     if (showLegend) {
-      final legendItems = [
-        (const Color(0xFF1F4E79), 'Box (IQR: Q1–Q3)'),
-        (Colors.black87, 'Median Line (—)'),
-        (const Color(0xFFD32F2F), 'Mean Marker (▲)'),
-        (Colors.grey.shade600, 'Observations (Jittered •)'),
-        (const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
-      ];
       var curX = marginLeft;
-      final legendY = size.height - 22.0;
+      final legendY = size.height - 24.0;
+
+      if (hasSubgroups && clusterMode == GroupStatsClusterMode.bySubgroup) {
+        for (var k = 0; k < orderedGroups.length; k++) {
+          final g = orderedGroups[k];
+          final col = _palette[k % _palette.length];
+          final isH = (k % 2 == 1 && plotType == GroupStatsPlotType.barChart);
+
+          final boxPaint = Paint()
+            ..color = col.withOpacity(isH ? 0.25 : 0.40)
+            ..style = PaintingStyle.fill;
+          final outlineP = Paint()
+            ..color = col
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4;
+          final legR = Rect.fromLTWH(curX, legendY + 2, 12, 10);
+          canvas.drawRect(legR, boxPaint);
+          if (isH) {
+            canvas.save();
+            canvas.clipRect(legR);
+            final hP = Paint()..color = col..strokeWidth = 1.0;
+            canvas.drawLine(Offset(legR.left - 4, legR.bottom), Offset(legR.left + 8, legR.top), hP);
+            canvas.drawLine(Offset(legR.left + 2, legR.bottom), Offset(legR.left + 14, legR.top), hP);
+            canvas.restore();
+          }
+          canvas.drawRect(legR, outlineP);
+          curX += 16;
+
+          final tp = TextPainter(
+            text: TextSpan(text: isH ? '$g (Hatched)' : g, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(curX, legendY));
+          curX += tp.width + 16;
+        }
+      }
+
+      final legendItems = (plotType == GroupStatsPlotType.barChart)
+          ? [
+              (Colors.black87, useSem ? 'Error Bar (±SEM)' : 'Error Bar (±SD)'),
+              (Colors.black54, 'Observations (•)'),
+              (const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+            ]
+          : [
+              (const Color(0xFF1F4E79), 'Box (IQR: Q1–Q3)'),
+              (Colors.black87, 'Median Line (—)'),
+              (const Color(0xFFD32F2F), 'Mean Marker (▲)'),
+              (Colors.grey.shade600, 'Observations (•)'),
+              (const Color(0xFF16A34A), 'Sig Contrast (* p<0.05)'),
+            ];
+
       for (final item in legendItems) {
         final boxPaint = Paint()..color = item.$1;
         canvas.drawRRect(

@@ -1385,8 +1385,15 @@ class GroupStatsEngine {
       buf.writeln('<div class="meta">Model: <strong>$modelType</strong> · Total Observations: $nObs · Unique Subjects: $nSubj</div>');
 
       final safeMetric = metric.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
-      buf.writeln('<div style="text-align: center; margin: 18px 0;">');
-      buf.writeln('  <img src="plots/${safeMetric}_boxplot.png" alt="$metric Plot" style="max-width: 100%; max-height: 480px; height: auto; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" onerror="this.style.display=\'none\'" />');
+      buf.writeln('<div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 18px 0;">');
+      buf.writeln('  <div style="text-align: center; flex: 1; min-width: 320px; max-width: 580px;">');
+      buf.writeln('    <div style="font-size: 12px; font-weight: bold; color: #1f4e79; margin-bottom: 6px;">Grouped Bar Chart (Mean ± SEM)</div>');
+      buf.writeln('    <img src="plots/${safeMetric}_barchart.png" alt="$metric Bar Chart" style="width: 100%; height: auto; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" onerror="this.parentElement.style.display=\'none\'" />');
+      buf.writeln('  </div>');
+      buf.writeln('  <div style="text-align: center; flex: 1; min-width: 320px; max-width: 580px;">');
+      buf.writeln('    <div style="font-size: 12px; font-weight: bold; color: #1f4e79; margin-bottom: 6px;">Box-and-Whisker Plot (Tukey IQR + Jitter)</div>');
+      buf.writeln('    <img src="plots/${safeMetric}_boxplot.png" alt="$metric Boxplot" style="width: 100%; height: auto; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" onerror="this.parentElement.style.display=\'none\'" />');
+      buf.writeln('  </div>');
       buf.writeln('</div>');
 
       // Model Effects Table
