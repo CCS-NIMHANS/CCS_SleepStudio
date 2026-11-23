@@ -69,7 +69,7 @@ if [[ "$IS_RPM" = true ]]; then
     
     # Pre-install mpv-libs if available
     echo "    Checking for mpv-libs package..."
-    dnf install -y mpv-libs 2>/dev/null || true
+    (dnf install -y mpv-libs || dnf install -y --allowerasing mpv-libs || dnf install -y --disablerepo="rpmfusion*" mpv-libs) 2>/dev/null || true
   fi
 elif [[ "$IS_DEB" = true ]]; then
   if command -v apt-get >/dev/null 2>&1; then
