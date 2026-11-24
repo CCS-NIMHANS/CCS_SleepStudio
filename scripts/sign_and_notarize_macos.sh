@@ -59,7 +59,7 @@ if [[ -n "${MACOS_CERT_P12_BASE64:-}" ]]; then
   fi
   TEMP_DIR="$(mktemp -d)"
   P12_FILE="$TEMP_DIR/devid.p12"
-  KEYCHAIN_PASS="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32 || echo 'ccs-temp-keychain-pass')"
+  KEYCHAIN_PASS="$(openssl rand -hex 16)"
   TEMP_KEYCHAIN="$TEMP_DIR/signing.keychain-db"
 
   printf '%s' "$MACOS_CERT_P12_BASE64" | tr -d '[:space:]' | base64 --decode > "$P12_FILE"
@@ -77,6 +77,8 @@ if [[ -n "${MACOS_CERT_P12_BASE64:-}" ]]; then
   security import "$P12_FILE" \
     -P "$MACOS_CERT_PASSWORD" \
     -A \
+    -T /usr/bin/codesign \
+    -T /usr/bin/security \
     -t cert \
     -f pkcs12 \
     -k "$TEMP_KEYCHAIN"
@@ -172,7 +174,7 @@ if [[ ${#NOTARY_ARGS[@]} -eq 0 ]]; then
 fi
 
 echo "==> Submitting $ZIP_NAME for Apple Notarization..."
-xcrun notarytool submit "$ZIP_OUT" "${NOTARY_ARGS[@]}" --wait
+xcrun notarytool submit "$ZIP_OUT" "${NOTARY_ARGS[@]}" --wait --timeout 15m
 
 xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
@@ -197,7 +199,7 @@ hdiutil create \
   "$DMG_OUT"
 
 codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_OUT"
-xcrun notarytool submit "$DMG_OUT" "${NOTARY_ARGS[@]}" --wait
+xcrun notarytool submit "$DMG_OUT" "${NOTARY_ARGS[@]}" --wait --timeout 15m
 xcrun stapler staple "$DMG_OUT"
 xcrun stapler validate "$DMG_OUT"
 echo "✅  Notarized macOS artifacts ready: $ZIP_OUT & $DMG_OUT"
