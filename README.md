@@ -34,6 +34,7 @@
   <a href="#-key-features"><b>Key Features</b></a> &nbsp;•&nbsp;
   <a href="#-running--building-locally"><b>Build from Source</b></a> &nbsp;•&nbsp;
   <a href="CHANGELOG.md"><b>Release Notes</b></a> &nbsp;•&nbsp;
+  <a href="CODE_SIGNING_POLICY.md"><b>Code Signing Policy</b></a> &nbsp;•&nbsp;
   <a href="https://github.com/CCS-NIMHANS/CCS_SleepStudio/issues"><b>Report Issue</b></a>
 </p>
 
@@ -57,7 +58,8 @@ Pre-built standalone desktop installers and application bundles are published th
 | | **Lite** | x86_64 RPM Installer | `ccs-sleep-studio` | [CCSSleepStudio-lite-linux-x86_64.rpm](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest/download/CCSSleepStudio-lite-linux-x86_64.rpm) |
 
 > 📦 **All Releases & Checksums:** View all published packages and assets on the **[GitHub Releases Page](https://github.com/CCS-NIMHANS/CCS_SleepStudio/releases/latest)**.  
-> 🐧 **Automated Linux Workstations:** For one-line multi-user server installation, see [Quick Install for Linux](#-quick-install-for-linux-servers--multi-user-workstations).
+> 🐧 **Automated Linux Workstations:** For one-line multi-user server installation, see [Quick Install for Linux](#-quick-install-for-linux-servers--multi-user-workstations).  
+> 🔐 **Windows Code Signing:** Free Windows code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/) (see [Code Signing Policy](CODE_SIGNING_POLICY.md)).
 
 #### 🍏 First-Time Launch for macOS Users (Gatekeeper Setup)
 

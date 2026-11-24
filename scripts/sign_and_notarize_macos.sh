@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# sign_and_notarize_macos.sh — Developer ID signing, Hardened Runtime,
+# Apple Notarization, and stapled .zip / .dmg packaging for CCS Sleep Studio.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP_PATH="${APP_PATH:-$ROOT/frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app}"
+OUT_DIR="${OUT_DIR:-$ROOT/dist}"
+ENTITLEMENTS="${ENTITLEMENTS:-$ROOT/frontend/macos/Runner/Release.entitlements}"
+ZIP_NAME="${ZIP_NAME:-CCSSleepStudio-macos.zip}"
+DMG_NAME="${DMG_NAME:-CCSSleepStudio-macos.dmg}"
+VOL_NAME="${VOL_NAME:-CCS Sleep Studio}"
+SIGN_IDENTITY="${MACOS_SIGN_IDENTITY:-}"
+APPLE_TEAM_ID="${APPLE_TEAM_ID:-Y445J7MR4Q}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --app) APP_PATH="$2"; shift 2 ;;
+    --out-dir) OUT_DIR="$2"; shift 2 ;;
+    --entitlements) ENTITLEMENTS="$2"; shift 2 ;;
+    --zip-name) ZIP_NAME="$2"; shift 2 ;;
+    --dmg-name) DMG_NAME="$2"; shift 2 ;;
+    --volname) VOL_NAME="$2"; shift 2 ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! -d "$APP_PATH" ]]; then
+  echo "Error: App bundle not found at $APP_PATH" >&2
+  exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+
+TEMP_KEYCHAIN=""
+TEMP_DIR=""
+ORIG_KEYCHAINS=()
+
+cleanup() {
+  if [[ -n "$TEMP_KEYCHAIN" ]]; then
+    if [[ ${#ORIG_KEYCHAINS[@]} -gt 0 ]]; then
+      security list-keychains -d user -s "${ORIG_KEYCHAINS[@]}" 2>/dev/null || true
+    fi
+    security delete-keychain "$TEMP_KEYCHAIN" 2>/dev/null || true
+  fi
+  if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
+    rm -rf "$TEMP_DIR"
+  fi
+}
+trap cleanup EXIT
+
+if [[ -n "${MACOS_CERT_P12_BASE64:-}" ]]; then
+  if [[ -z "${MACOS_CERT_PASSWORD:-}" ]]; then
+    echo "Error: MACOS_CERT_PASSWORD must be set when MACOS_CERT_P12_BASE64 is provided." >&2
+    exit 1
+  fi
+  TEMP_DIR="$(mktemp -d)"
+  P12_FILE="$TEMP_DIR/devid.p12"
+  KEYCHAIN_PASS="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32 || echo 'ccs-temp-keychain-pass')"
+  TEMP_KEYCHAIN="$TEMP_DIR/signing.keychain-db"
+
+  printf '%s' "$MACOS_CERT_P12_BASE64" | tr -d '[:space:]' | base64 --decode > "$P12_FILE"
+
+  while IFS= read -r kc; do
+    kc="${kc//\"/}"
+    kc="${kc#"${kc%%[![:space:]]*}"}"
+    kc="${kc%"${kc##*[![:space:]]}"}"
+    [[ -n "$kc" ]] && ORIG_KEYCHAINS+=("$kc")
+  done < <(security list-keychains -d user)
+
+  security create-keychain -p "$KEYCHAIN_PASS" "$TEMP_KEYCHAIN"
+  security set-keychain-settings -lut 21600 "$TEMP_KEYCHAIN"
+  security unlock-keychain -p "$KEYCHAIN_PASS" "$TEMP_KEYCHAIN"
+  security import "$P12_FILE" \
+    -P "$MACOS_CERT_PASSWORD" \
+    -A \
+    -t cert \
+    -f pkcs12 \
+    -k "$TEMP_KEYCHAIN"
+  security set-key-partition-list \
+    -S apple-tool:,apple:,codesign: \
+    -s \
+    -k "$KEYCHAIN_PASS" \
+    "$TEMP_KEYCHAIN" >/dev/null
+  security list-keychains -d user -s "$TEMP_KEYCHAIN" "${ORIG_KEYCHAINS[@]}"
+  rm -f "$P12_FILE"
+fi
+
+if [[ -z "$SIGN_IDENTITY" ]]; then
+  SIGN_IDENTITY="$(security find-identity -v -p codesigning \
+    | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' \
+    | head -n 1 || true)"
+fi
+
+ZIP_OUT="$OUT_DIR/$ZIP_NAME"
+DMG_OUT="$OUT_DIR/$DMG_NAME"
+
+if [[ -z "$SIGN_IDENTITY" ]]; then
+  echo "==> No Developer ID Application identity found; falling back to ad-hoc signing..."
+  codesign --force --deep --sign - "$APP_PATH"
+  rm -f "$ZIP_OUT"
+  ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_OUT"
+  echo "    Ad-hoc ZIP created: $ZIP_OUT"
+  exit 0
+fi
+
+echo "==> Signing macOS bundle inside-out with: $SIGN_IDENTITY"
+
+for subdir in "$APP_PATH/Contents/Frameworks" "$APP_PATH/Contents/PlugIns"; do
+  if [[ -d "$subdir" ]]; then
+    while IFS= read -r -d '' bin; do
+      codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "$bin"
+    done < <(find "$subdir" -type f \( -name "*.dylib" -o -name "*.so" \) -print0)
+  fi
+done
+
+for subdir in "$APP_PATH/Contents/Frameworks" "$APP_PATH/Contents/PlugIns"; do
+  if [[ -d "$subdir" ]]; then
+    while IFS= read -r -d '' fw; do
+      codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "$fw"
+    done < <(find "$subdir" -maxdepth 2 \( -name "*.framework" -o -name "*.xpc" -o -name "*.app" \) -print0)
+  fi
+done
+
+if [[ -f "$APP_PATH/Contents/Resources/analyse-nidra" ]]; then
+  codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" \
+    "$APP_PATH/Contents/Resources/analyse-nidra"
+fi
+
+codesign --force --timestamp --options runtime \
+  --entitlements "$ENTITLEMENTS" \
+  --sign "$SIGN_IDENTITY" \
+  "$APP_PATH"
+
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+rm -f "$ZIP_OUT"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_OUT"
+echo "    Signed ZIP created: $ZIP_OUT"
+
+NOTARY_ARGS=()
+if [[ -n "${MACOS_NOTARY_KEY_BASE64:-}" || -n "${MACOS_NOTARY_KEY_PATH:-}" ]]; then
+  if [[ -n "${MACOS_NOTARY_KEY_PATH:-}" ]]; then
+    NOTARY_KEY_FILE="$MACOS_NOTARY_KEY_PATH"
+  else
+    [[ -n "$TEMP_DIR" ]] || TEMP_DIR="$(mktemp -d)"
+    NOTARY_KEY_FILE="$TEMP_DIR/AuthKey_${MACOS_NOTARY_KEY_ID}.p8"
+    printf '%s' "$MACOS_NOTARY_KEY_BASE64" | tr -d '[:space:]' | base64 --decode > "$NOTARY_KEY_FILE"
+    chmod 600 "$NOTARY_KEY_FILE"
+  fi
+  NOTARY_ARGS=(
+    --key "$NOTARY_KEY_FILE"
+    --key-id "$MACOS_NOTARY_KEY_ID"
+    --issuer "$MACOS_NOTARY_ISSUER_ID"
+  )
+elif [[ -n "${MACOS_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+  NOTARY_ARGS=(--keychain-profile "$MACOS_NOTARY_KEYCHAIN_PROFILE")
+elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+  NOTARY_ARGS=(
+    --apple-id "$APPLE_ID"
+    --password "$APPLE_APP_SPECIFIC_PASSWORD"
+    --team-id "$APPLE_TEAM_ID"
+  )
+fi
+
+if [[ ${#NOTARY_ARGS[@]} -eq 0 ]]; then
+  echo "==> No notarization credentials provided; skipping Apple notarization and DMG creation."
+  exit 0
+fi
+
+echo "==> Submitting $ZIP_NAME for Apple Notarization..."
+xcrun notarytool submit "$ZIP_OUT" "${NOTARY_ARGS[@]}" --wait
+
+xcrun stapler staple "$APP_PATH"
+xcrun stapler validate "$APP_PATH"
+
+rm -f "$ZIP_OUT"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_OUT"
+echo "    Notarized & stapled ZIP updated: $ZIP_OUT"
+
+echo "==> Creating drag-to-Applications DMG ($DMG_NAME)..."
+[[ -n "$TEMP_DIR" ]] || TEMP_DIR="$(mktemp -d)"
+DMG_STAGE="$TEMP_DIR/dmg-stage-$RANDOM"
+mkdir -p "$DMG_STAGE"
+ditto "$APP_PATH" "$DMG_STAGE/$(basename "$APP_PATH")"
+ln -s /Applications "$DMG_STAGE/Applications"
+
+rm -f "$DMG_OUT"
+hdiutil create \
+  -volname "$VOL_NAME" \
+  -srcfolder "$DMG_STAGE" \
+  -ov \
+  -format UDZO \
+  "$DMG_OUT"
+
+codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_OUT"
+xcrun notarytool submit "$DMG_OUT" "${NOTARY_ARGS[@]}" --wait
+xcrun stapler staple "$DMG_OUT"
+xcrun stapler validate "$DMG_OUT"
+echo "✅  Notarized macOS artifacts ready: $ZIP_OUT & $DMG_OUT"
