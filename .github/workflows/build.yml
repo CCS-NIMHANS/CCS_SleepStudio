@@ -117,7 +117,7 @@ jobs:
         run: flutter test
         working-directory: frontend
 
-      # 1. Build and Package Lite version
+      # 1. Build, Sign & Notarize Lite version
       - name: Build macOS app (Lite)
         run: flutter build macos --release --dart-define=LITE_BUILD=true
         working-directory: frontend
@@ -131,31 +131,29 @@ jobs:
       - name: Verify Universal architectures (Lite - Intel x86_64 & Apple Silicon arm64)
         run: |
           APP="frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app"
-          echo "=== App Executable Architectures (Lite) ==="
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio"
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "x86_64" || (echo "ERROR: Missing Intel x86_64 in app binary" && exit 1)
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "arm64" || (echo "ERROR: Missing Apple Silicon arm64 in app binary" && exit 1)
-          echo "=== Rust Bridge Dylib Architectures (Lite) ==="
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib"
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "x86_64" || exit 1
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "arm64" || exit 1
-          echo "=== AnalyseNidra CLI Architectures (Lite) ==="
-          lipo -info "$APP/Contents/Resources/analyse-nidra"
-          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "x86_64" || exit 1
-          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "arm64" || exit 1
-          echo "Lite Universal verification PASSED."
+          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "x86_64"
+          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "arm64"
+          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "x86_64"
+          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "arm64"
+          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "x86_64"
+          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "arm64"
 
-      - name: Ad-hoc sign macOS app (Lite)
-        run: codesign --force --deep --sign - "frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app"
-
-      - name: Package macOS app (Lite)
+      - name: Sign, package, and notarize macOS app (Lite)
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          APPLE_TEAM_ID: Y445J7MR4Q
         run: |
-          mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent \
-            "frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app" \
-            dist/CCSSleepStudio-lite-macos.zip
+          bash scripts/sign_and_notarize_macos.sh \
+            --zip-name CCSSleepStudio-lite-macos.zip \
+            --dmg-name CCSSleepStudio-lite-macos.dmg \
+            --volname "CCS Sleep Studio Lite"
 
-      # 2. Build and Package Full version
+      # 2. Build, Sign & Notarize Full version
       - name: Build macOS app (Full)
         run: flutter build macos --release
         working-directory: frontend
@@ -170,49 +168,50 @@ jobs:
       - name: Verify Universal architectures (Full - Intel x86_64 & Apple Silicon arm64)
         run: |
           APP="frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app"
-          echo "=== App Executable Architectures (Full) ==="
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio"
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "x86_64" || (echo "ERROR: Missing Intel x86_64 in app binary" && exit 1)
-          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "arm64" || (echo "ERROR: Missing Apple Silicon arm64 in app binary" && exit 1)
-          echo "=== Rust Bridge Dylib Architectures (Full) ==="
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib"
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "x86_64" || exit 1
-          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "arm64" || exit 1
-          echo "=== AnalyseNidra CLI Architectures (Full) ==="
-          lipo -info "$APP/Contents/Resources/analyse-nidra"
-          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "x86_64" || exit 1
-          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "arm64" || exit 1
-          echo "Full Universal verification PASSED."
+          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "x86_64"
+          lipo -info "$APP/Contents/MacOS/CCS Sleep Studio" | grep -q "arm64"
+          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "x86_64"
+          lipo -info "$APP/Contents/Frameworks/librust_sleep_eeg.dylib" | grep -q "arm64"
+          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "x86_64"
+          lipo -info "$APP/Contents/Resources/analyse-nidra" | grep -q "arm64"
 
-      - name: Ad-hoc sign macOS app (Full)
-        run: codesign --force --deep --sign - "frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app"
-
-      - name: Package macOS app (Full)
+      - name: Sign, package, and notarize macOS app (Full)
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          APPLE_TEAM_ID: Y445J7MR4Q
         run: |
-          ditto -c -k --sequesterRsrc --keepParent \
-            "frontend/build/macos/Build/Products/Release/CCS Sleep Studio.app" \
-            dist/CCSSleepStudio-macos.zip
+          bash scripts/sign_and_notarize_macos.sh \
+            --zip-name CCSSleepStudio-macos.zip \
+            --dmg-name CCSSleepStudio-macos.dmg \
+            --volname "CCS Sleep Studio"
 
       # 3. Upload Artifacts
       - name: Upload macOS Full artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-macos
-          path: dist/CCSSleepStudio-macos.zip
+          path: dist/CCSSleepStudio-macos.*
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
       - name: Upload macOS Lite artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-lite-macos
-          path: dist/CCSSleepStudio-lite-macos.zip
+          path: dist/CCSSleepStudio-lite-macos.*
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
   build-windows:
     name: Windows
     runs-on: windows-2022
+    env:
+      HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && secrets.SIGNPATH_ORG_ID != '' }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.ref, 'refs/tags/v') ||
@@ -267,7 +266,14 @@ jobs:
         run: flutter test
         working-directory: frontend
 
-      # 1. Build and Package Lite version
+      - name: Read app version (Windows)
+        id: appver
+        shell: pwsh
+        run: |
+          $line = Select-String -Path frontend\pubspec.yaml -Pattern '^version:\s*([0-9.]+)' | Select-Object -First 1
+          "version=$($line.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
+
+      # 1. Build, Sign & Package Lite version
       - name: Build Windows app (Lite)
         run: flutter build windows --release --dart-define=LITE_BUILD=true
         working-directory: frontend
@@ -279,17 +285,98 @@ jobs:
           Copy-Item backend\group_stats.py frontend\build\windows\x64\runner\Release\
           if (-not (Test-Path frontend\build\windows\x64\runner\Release\analyse-nidra.exe)) { exit 1 }
 
-      - name: Read app version (Windows)
-        id: appver
+      - name: Package unsigned Windows Lite binaries for SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
         shell: pwsh
         run: |
-          $line = Select-String -Path frontend\pubspec.yaml -Pattern '^version:\s*([0-9.]+)' | Select-Object -First 1
-          "version=$($line.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "frontend\build\windows\x64\runner\Release\*" -DestinationPath "dist\windows-lite-unsigned.zip" -Force
+
+      - name: Upload unsigned Windows Lite binaries
+        id: upload-unsigned-lite-app
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-lite-app-unsigned
+          path: dist\windows-lite-unsigned.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Windows Lite binaries via SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+          project-slug: ccs-sleep-studio
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app-binaries
+          github-artifact-id: ${{ steps.upload-unsigned-lite-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: dist\signed-lite-app
+          parameters: |
+            version: ${{ steps.appver.outputs.version }}
+
+      - name: Restore signed Windows Lite binaries
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          $dest = "frontend\build\windows\x64\runner\Release"
+          $zip = Get-ChildItem -Path "dist\signed-lite-app" -Filter "*.zip" -Recurse | Select-Object -First 1
+          if ($zip) {
+            Expand-Archive -Path $zip.FullName -DestinationPath $dest -Force
+          } else {
+            Copy-Item -Path "dist\signed-lite-app\*" -Destination $dest -Recurse -Force
+          }
 
       - name: Package Windows app (Lite Installer)
         run: iscc /DAppVer=${{ steps.appver.outputs.version }} /F"CCSSleepStudio-lite-Installer" frontend/windows/installer-lite.iss
 
-      # 2. Build and Package Full version
+      - name: Upload unsigned Windows Lite installer
+        id: upload-unsigned-lite-installer
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-lite-installer-unsigned
+          path: frontend\dist\CCSSleepStudio-lite-Installer.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Windows Lite installer via SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+          project-slug: ccs-sleep-studio
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-unsigned-lite-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: dist\signed-lite-installer
+          parameters: |
+            version: ${{ steps.appver.outputs.version }}
+
+      - name: Stage signed Windows Lite installer
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -Path "dist\signed-lite-installer" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $signed) {
+            $zip = Get-ChildItem -Path "dist\signed-lite-installer" -Filter "*.zip" -Recurse | Select-Object -First 1
+            if ($zip) {
+              Expand-Archive -Path $zip.FullName -DestinationPath "dist\signed-lite-installer-extracted" -Force
+              $signed = Get-ChildItem -Path "dist\signed-lite-installer-extracted" -Filter "*.exe" -Recurse | Select-Object -First 1
+            }
+          }
+          if (-not $signed) { throw "Signed Lite installer not found" }
+          Copy-Item $signed.FullName "frontend\dist\CCSSleepStudio-lite-Installer.exe" -Force
+
+      # 2. Build, Sign & Package Full version
       - name: Build Windows app (Full)
         run: flutter build windows --release
         working-directory: frontend
@@ -299,32 +386,118 @@ jobs:
         run: |
           Copy-Item analyseNidra\target\release\analyse-nidra.exe frontend\build\windows\x64\runner\Release\
           Copy-Item backend\group_stats.py frontend\build\windows\x64\runner\Release\
-          # Create assets\ first: Copy-Item -Recurse into a missing folder would
-          # rename models\ to assets\ instead of nesting it.
           New-Item -ItemType Directory -Force -Path frontend\build\windows\x64\runner\Release\assets | Out-Null
           Copy-Item -Recurse -Force analyseNidra\assets\models frontend\build\windows\x64\runner\Release\assets\
           if (-not (Test-Path frontend\build\windows\x64\runner\Release\assets\models\pops\s2_trees.txt)) { exit 1 }
           if (-not (Test-Path frontend\build\windows\x64\runner\Release\analyse-nidra.exe)) { exit 1 }
 
+      - name: Package unsigned Windows Full binaries for SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "frontend\build\windows\x64\runner\Release\*" -DestinationPath "dist\windows-full-unsigned.zip" -Force
+
+      - name: Upload unsigned Windows Full binaries
+        id: upload-unsigned-full-app
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-full-app-unsigned
+          path: dist\windows-full-unsigned.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Windows Full binaries via SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+          project-slug: ccs-sleep-studio
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app-binaries
+          github-artifact-id: ${{ steps.upload-unsigned-full-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: dist\signed-full-app
+          parameters: |
+            version: ${{ steps.appver.outputs.version }}
+
+      - name: Restore signed Windows Full binaries
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          $dest = "frontend\build\windows\x64\runner\Release"
+          $zip = Get-ChildItem -Path "dist\signed-full-app" -Filter "*.zip" -Recurse | Select-Object -First 1
+          if ($zip) {
+            Expand-Archive -Path $zip.FullName -DestinationPath $dest -Force
+          } else {
+            Copy-Item -Path "dist\signed-full-app\*" -Destination $dest -Recurse -Force
+          }
+
       - name: Package Windows app (Full Installer)
         run: iscc /DAppVer=${{ steps.appver.outputs.version }} /F"CCSSleepStudio-Installer" frontend/windows/installer.iss
 
+      - name: Upload unsigned Windows Full installer
+        id: upload-unsigned-full-installer
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-full-installer-unsigned
+          path: frontend\dist\CCSSleepStudio-Installer.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Windows Full installer via SignPath
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+          project-slug: ccs-sleep-studio
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-unsigned-full-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: dist\signed-full-installer
+          parameters: |
+            version: ${{ steps.appver.outputs.version }}
+
+      - name: Stage signed Windows Full installer
+        if: env.HAS_SIGNPATH == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -Path "dist\signed-full-installer" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $signed) {
+            $zip = Get-ChildItem -Path "dist\signed-full-installer" -Filter "*.zip" -Recurse | Select-Object -First 1
+            if ($zip) {
+              Expand-Archive -Path $zip.FullName -DestinationPath "dist\signed-full-installer-extracted" -Force
+              $signed = Get-ChildItem -Path "dist\signed-full-installer-extracted" -Filter "*.exe" -Recurse | Select-Object -First 1
+            }
+          }
+          if (-not $signed) { throw "Signed Full installer not found" }
+          Copy-Item $signed.FullName "frontend\dist\CCSSleepStudio-Installer.exe" -Force
+
       # 3. Upload Artifacts
       - name: Upload Windows Full installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-Installer
           path: frontend/dist/CCSSleepStudio-Installer.exe
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
       - name: Upload Windows Lite installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-lite-Installer
           path: frontend/dist/CCSSleepStudio-lite-Installer.exe
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
   build-linux:
     name: Linux
@@ -445,26 +618,25 @@ jobs:
               ! grep -E "not found|version .* not found" /tmp/app-ldd.txt
             '
 
-      # 3. Upload Artifacts
       - name: Upload Linux Full artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-linux-installers
           path: |
             dist/CCSSleepStudio-linux-amd64.deb
             dist/CCSSleepStudio-linux-x86_64.rpm
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
       - name: Upload Linux Lite artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-lite-linux-installers
           path: |
             dist/CCSSleepStudio-lite-linux-amd64.deb
             dist/CCSSleepStudio-lite-linux-x86_64.rpm
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
   release:
     name: Release Assets
@@ -479,37 +651,37 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download macOS artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-macos
           path: dist
 
       - name: Download macOS Lite artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-lite-macos
           path: dist
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-Installer
           path: dist
 
       - name: Download Windows Lite artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-lite-Installer
           path: dist
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-linux-installers
           path: dist
 
       - name: Download Linux Lite artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CCSSleepStudio-lite-linux-installers
           path: dist
@@ -541,8 +713,8 @@ jobs:
           name: ${{ steps.release_info.outputs.title }}
           prerelease: false
           files: |
-            dist/CCSSleepStudio-macos.zip
-            dist/CCSSleepStudio-lite-macos.zip
+            dist/CCSSleepStudio-macos.*
+            dist/CCSSleepStudio-lite-macos.*
             dist/CCSSleepStudio-Installer.exe
             dist/CCSSleepStudio-lite-Installer.exe
             dist/CCSSleepStudio-linux-amd64.deb
