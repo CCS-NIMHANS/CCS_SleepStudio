@@ -173,16 +173,6 @@ if [[ ${#NOTARY_ARGS[@]} -eq 0 ]]; then
   exit 0
 fi
 
-echo "==> Submitting $ZIP_NAME for Apple Notarization..."
-xcrun notarytool submit "$ZIP_OUT" "${NOTARY_ARGS[@]}" --wait --timeout 15m
-
-xcrun stapler staple "$APP_PATH"
-xcrun stapler validate "$APP_PATH"
-
-rm -f "$ZIP_OUT"
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_OUT"
-echo "    Notarized & stapled ZIP updated: $ZIP_OUT"
-
 echo "==> Creating drag-to-Applications DMG ($DMG_NAME)..."
 [[ -n "$TEMP_DIR" ]] || TEMP_DIR="$(mktemp -d)"
 DMG_STAGE="$TEMP_DIR/dmg-stage-$RANDOM"
@@ -199,7 +189,14 @@ hdiutil create \
   "$DMG_OUT"
 
 codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_OUT"
-xcrun notarytool submit "$DMG_OUT" "${NOTARY_ARGS[@]}" --wait --timeout 15m
+
+echo "==> Submitting $DMG_NAME for Apple Notarization (single submission for .dmg & .app)..."
+xcrun notarytool submit "$DMG_OUT" "${NOTARY_ARGS[@]}" --wait --timeout 45m
 xcrun stapler staple "$DMG_OUT"
 xcrun stapler validate "$DMG_OUT"
+xcrun stapler staple "$APP_PATH"
+xcrun stapler validate "$APP_PATH"
+
+rm -f "$ZIP_OUT"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_OUT"
 echo "✅  Notarized macOS artifacts ready: $ZIP_OUT & $DMG_OUT"
