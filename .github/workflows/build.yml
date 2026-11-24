@@ -482,12 +482,29 @@ jobs:
           if (-not $signed) { throw "Signed Full installer not found" }
           Copy-Item $signed.FullName "frontend\dist\CCSSleepStudio-Installer.exe" -Force
 
+      - name: Build Microsoft Store MSIX package (Full)
+        shell: pwsh
+        env:
+          MS_STORE_IDENTITY_NAME: ${{ secrets.MS_STORE_IDENTITY_NAME }}
+          MS_STORE_PUBLISHER_ID: ${{ secrets.MS_STORE_PUBLISHER_ID }}
+          MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          pwsh -File scripts\package_windows_msix.ps1 `
+            -ReleaseDir "frontend\build\windows\x64\runner\Release" `
+            -OutputPath "frontend\dist\CCSSleepStudio-windows-x64.msix" `
+            -AppName "CCS Sleep Studio" `
+            -ExeName "CCSSleepStudio.exe" `
+            -Version "${{ steps.appver.outputs.version }}" `
+            -IconPath "frontend\windows\runner\resources\app_icon.ico"
+
       # 3. Upload Artifacts
       - name: Upload Windows Full installer artifact
         uses: actions/upload-artifact@v7
         with:
           name: CCSSleepStudio-Installer
-          path: frontend/dist/CCSSleepStudio-Installer.exe
+          path: |
+            frontend/dist/CCSSleepStudio-Installer.exe
+            frontend/dist/CCSSleepStudio-windows-x64.msix
           if-no-files-found: error
           retention-days: 14
 
@@ -717,6 +734,7 @@ jobs:
             dist/CCSSleepStudio-lite-macos.*
             dist/CCSSleepStudio-Installer.exe
             dist/CCSSleepStudio-lite-Installer.exe
+            dist/CCSSleepStudio-windows-x64.msix
             dist/CCSSleepStudio-linux-amd64.deb
             dist/CCSSleepStudio-lite-linux-amd64.deb
             dist/CCSSleepStudio-linux-x86_64.rpm
