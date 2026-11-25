@@ -12,6 +12,17 @@ void main() {
       expect(detectChannelModality('O1'), equals(ChannelModality.eeg));
       expect(detectChannelModality('EEG F3-A2'), equals(ChannelModality.eeg));
       expect(detectChannelModality('T3-T5'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('A1'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('A2'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('M1'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('M2'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('EEG A1-Ref'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('M2-Ref'), equals(ChannelModality.eeg));
+      expect(detectChannelModality('A1-A2'), equals(ChannelModality.eeg));
+      expect(isEegLabel('A1'), isTrue);
+      expect(isEegLabel('A2'), isTrue);
+      expect(isEegLabel('M1'), isTrue);
+      expect(isEegLabel('M2'), isTrue);
     });
 
     test('identifies EOG channels correctly', () {
@@ -430,6 +441,38 @@ void main() {
       expect(plmVisible, contains('LAT'));
       expect(plmVisible, contains('RAT'));
       expect(plmVisible, contains('Position'));
+    });
+
+    test('defaultChannelConfig applies AASM EEG filters (0.3-35 Hz) to A1/A2/M1/M2', () {
+      for (var i = 0; i < 4; i++) {
+        final name = const ['A1', 'A2', 'M1', 'M2'][i];
+        final ch = AppConfig.defaultChannelConfig(name, i, 12);
+        expect(ch.filterHpEnabled, isTrue, reason: '$name HP filter should be enabled');
+        expect(ch.filterHpCutoff, equals(0.3), reason: '$name HP cutoff should be 0.3 Hz');
+        expect(ch.filterLpEnabled, isTrue, reason: '$name LP filter should be enabled');
+        expect(ch.filterLpCutoff, equals(35.0), reason: '$name LP cutoff should be 35.0 Hz');
+      }
+    });
+
+    test('AASM preset applies 0.3-35 Hz filters to LOC1-A2, ROC1-A2, and hidden A1/A2', () {
+      final asCntChannels = [
+        'A1', 'A2', 'F3', 'F4', 'C3', 'C4', 'O1', 'O2', 'LOC1', 'ROC1', 'EMG1', 'EMG2',
+      ];
+      final aasmPreset = builtInMontagePresets.firstWhere((p) => p.name.contains('AASM'));
+      final channels = generateMontagePresetChannels(
+        preset: aasmPreset,
+        availableChannels: asCntChannels,
+      );
+
+      for (final name in ['LOC1-A2', 'ROC1-A2', 'A1', 'A2']) {
+        final ch = channels.firstWhere((c) => c.name == name);
+        expect(ch.filterHpEnabled, isTrue, reason: '$name HP filter should be enabled');
+        expect(ch.filterHpCutoff, equals(0.3), reason: '$name HP cutoff should be 0.3 Hz');
+        expect(ch.filterLpEnabled, isTrue, reason: '$name LP filter should be enabled');
+        expect(ch.filterLpCutoff, equals(35.0), reason: '$name LP cutoff should be 35.0 Hz');
+      }
+      expect(channels.firstWhere((c) => c.name == 'A1').displayOnScreen, isFalse);
+      expect(channels.firstWhere((c) => c.name == 'A2').displayOnScreen, isFalse);
     });
   });
 }

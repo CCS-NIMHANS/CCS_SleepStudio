@@ -1261,16 +1261,16 @@ class _ConfigDialogState extends State<ConfigDialog> {
                           final sourceCfg = _working.channels.firstWhere(
                             (channel) => channel.name == source,
                           );
-                          Navigator.of(context).pop(
-                            ChannelConfig(
-                              name: '$source-$reference',
-                              sourceIndex: sourceCfg.sourceIndex,
-                              derived: true,
-                              sourceChannel: source,
-                              reReference: reference,
-                              color: sourceCfg.color,
-                            ),
+                          final channel = ChannelConfig(
+                            name: '$source-$reference',
+                            sourceIndex: sourceCfg.sourceIndex,
+                            derived: true,
+                            sourceChannel: source,
+                            reReference: reference,
+                            color: sourceCfg.color,
                           );
+                          applyAasmFiltersToChannel(channel);
+                          Navigator.of(context).pop(channel);
                         },
                   child: const Text('Add Channel'),
                 ),

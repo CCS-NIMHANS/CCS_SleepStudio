@@ -683,7 +683,7 @@ const List<String> kChannelDisplayModes = [
 enum LevelSignalKind { spo2, pulse, position, co2, other }
 
 final RegExp _eegLikeLabel = RegExp(
-  r'\b(EEG|EOG|EMG|ECG|EKG|LOC|ROC|E1|E2|CHIN|LEG|LAT|RAT|TIB)\b|^(F|C|O|P|T|FP|AF|FC|CP|PO|FT|TP)\d',
+  r'\b(EEG|EOG|EMG|ECG|EKG|LOC|ROC|E1|E2|CHIN|LEG|LAT|RAT|TIB|A1|A2|M1|M2)\b|^(F|C|O|P|T|FP|AF|FC|CP|PO|FT|TP)\d',
 );
 final RegExp _levelLabel = RegExp(
   r'SPO2|SPO₂|SAO2|SAT\b|OXI|OXYG|\bHR\b|\bPR\b|PULSE|HEART ?RATE|POSITION|\bPOS\b|BODY|CO2|LIGHT|\bLUX\b',
@@ -1146,7 +1146,7 @@ ChannelModality detectChannelModality(String rawLabel) {
   }
   final cleanName = lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
   final eegPattern = RegExp(
-    r'^(fp[12z]|af[1-9z]|f[1-9z]|fc[1-6z]|ft[7-9]|ft10|c[1-6z]|t[3-8]|tp[7-9]|tp10|cp[1-6z]|p[1-9z]|po[1-9z]|o[12z]|oz|cz|fz|pz|iz)$',
+    r'^(fp[12z]|af[1-9z]|f[1-9z]|fc[1-6z]|ft[7-9]|ft10|c[1-6z]|t[3-8]|tp[7-9]|tp10|cp[1-6z]|p[1-9z]|po[1-9z]|o[12z]|oz|cz|fz|pz|iz|(?:a[12]|m[12])(?:ref)?)$',
     caseSensitive: false,
   );
   if (eegPattern.hasMatch(cleanName) ||

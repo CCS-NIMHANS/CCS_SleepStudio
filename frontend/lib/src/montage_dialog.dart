@@ -262,6 +262,7 @@ class _MontageDialogState extends State<MontageDialog> {
       verticalShift: existing.verticalShift,
       displayMode: existing.displayMode,
     );
+    applyAasmFiltersToChannel(added);
 
     setState(() {
       _channels.add(added);
@@ -1271,6 +1272,11 @@ List<ChannelConfig> generateMontagePresetChannels({
         final rawIdx = availableChannels.indexOf(baseName);
         if (rawIdx >= 0) copy.sourceIndex = rawIdx;
         copy.displayOnScreen = false;
+        if (!copy.filterHpEnabled &&
+            !copy.filterLpEnabled &&
+            !copy.filterNotchEnabled) {
+          applyAasmFiltersToChannel(copy);
+        }
         newChannels.add(copy);
       }
     }
